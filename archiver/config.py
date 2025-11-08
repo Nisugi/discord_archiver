@@ -272,3 +272,14 @@ IGNORED_CHANNELS = PRIVATE_CHANNELS | INACCESSIBLE_CHANNELS
 # Deprecated settings (kept for reference but not used)
 ARCHIVE_MODE = False            # No longer needed after initial setup
 CUTOFF_DAYS = CRAWL_BACKFILL_DAYS  # Alias for compatibility
+
+
+
+
+# Mikos      can't find on discord
+# Nebhrail  can't find on discord
+# Rhameis   can't find on discord
+# Serannyse can't find on discord
+# Oscuro    found but deleted
+# Deleted User — 5/2/2020 9:34 AM
+# This was a premature deployment of the NoAmbientMsg flag.  Please do not test it yet.  You can safely wait for an announcement when details will be given.

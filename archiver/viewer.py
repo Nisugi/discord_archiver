@@ -365,7 +365,7 @@ def get_channels():
                 WHERE gv.chan_id = c.chan_id 
                 LIMIT 1
             )
-            AND c.accessible = 1
+            AND c.accessible IS TRUE
             {ignored_clause}
             ORDER BY parent_name, c.name
             LIMIT 500
@@ -421,7 +421,7 @@ def get_all_channels():
                 WHERE gv.chan_id = c.chan_id 
                 LIMIT 1
             )
-            AND c.accessible = 1
+            AND c.accessible IS TRUE
             {ignored_clause}
             ORDER BY parent_name, c.name
             LIMIT 500
