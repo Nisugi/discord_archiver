@@ -129,6 +129,16 @@ async def _flush_pending():
 async def cleanup_on_exit():
     print("\n[Archiver] Shutting down gracefully.")
     try:
+        # Cancel background tasks first so they stop using the DB while it closes
+        tasks = []
+        for attr in ("_crawl_task", "_repost_task"):
+            task = getattr(client, attr, None)
+            if task and not task.done():
+                task.cancel()
+                tasks.append(task)
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
         await close_db()
         if not client.is_closed():
             await client.close()

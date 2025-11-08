@@ -1263,10 +1263,10 @@ search_template = '''
         
         .search-bottom {
             display: grid;
-            grid-template-columns: repeat(2, minmax(280px, 1fr)) repeat(3, max-content);
+            grid-template-columns: repeat(2, minmax(200px, 1fr)) repeat(3, max-content);
             gap: 8px;
             align-items: center;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
         
         .search-top input,
@@ -1281,7 +1281,7 @@ search_template = '''
             padding: 8px 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            min-height: 40px;
+            min-height: 44px;
         }
         
         .search-top input[type="text"] {
@@ -1315,18 +1315,23 @@ search_template = '''
             color: #6b7280;
             margin-top: 4px;
         }
+        .status-text:empty {
+            display: none;
+            margin-top: 0;
+        }
         
         .inline-toggle {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 8px 12px;
+            padding: 8px 14px;
             border: 1px solid #ddd;
             border-radius: 6px;
             background: #fff;
-            min-height: 40px;
+            min-height: 44px;
             font-size: 14px;
             color: #4b5563;
+            box-sizing: border-box;
         }
         
         .inline-toggle input {
@@ -1390,16 +1395,34 @@ search_template = '''
         }
         
         /* Choices.js overrides */
+        .choices {
+            background: #1f2330;
+            border: 1px solid #343948;
+            border-radius: 6px;
+            color: #e5e7eb;
+        }
+
         .choices__inner {
             padding: 8px 40px 8px 12px;
             min-height: 44px;
             font-size: 16px;
+            border: none;
+            background: transparent;
+            color: inherit;
+        }
+        
+        .choices__input {
+            background: transparent;
+            color: inherit;
         }
         
         .choices__list--multiple .choices__item {
             margin: 2px 4px 2px 0;
             padding: 4px 8px;
             font-size: 14px;
+            background: #2a3040;
+            border: none;
+            color: #e5e7eb;
         }
         
         .choices__button {
@@ -1409,15 +1432,47 @@ search_template = '''
 
         .choices__list--dropdown,
         .choices__list {
-            background: #fff;
-            border: 1px solid #ddd;
-            color: #111;
+            background: #1b1f2a;
+            border: 1px solid #343948;
+            color: #e5e7eb;
         }
 
+        .choices__list--dropdown .choices__item,
+        .choices__list--dropdown .choices__item--selectable,
+        .choices__list--dropdown .choices__item--choice {
+            background: transparent !important;
+            color: inherit;
+        }
+
+        .choices__list--dropdown .choices__item--choice.is-selected,
+        .choices__list--dropdown .choices__item--choice.is-highlighted,
         .choices__list--dropdown .choices__item--selectable.is-highlighted,
         .choices__item--selectable.is-highlighted {
-            background: #e0e7ff;
-            color: #111;
+            background: #2f3648 !important;
+            color: #fff !important;
+        }
+        
+        .choices__placeholder {
+            opacity: 0.7;
+            color: #9ca3af;
+            background: transparent;
+        }
+
+        .search-bottom .choices {
+            min-height: 44px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .search-bottom .choices__inner {
+            width: 100%;
+            min-height: 44px;
+        }
+        
+        .search-bottom .inline-toggle,
+        .search-bottom .option-select {
+            align-self: stretch;
+            height: 44px;
         }
         
         .choices__list--dropdown .choices__item--selectable::after {
@@ -1821,12 +1876,9 @@ search_template = '''
                 border-color: #343948;
                 color: #e5e7eb;
             }
-            .choices__list--dropdown .choices__item--selectable.is-highlighted {
-                background: #2f3648;
-                color: #fff;
-            }
+            .choices__list--dropdown .choices__item--selectable.is-highlighted,
             .choices__item--selectable.is-highlighted {
-                background: #374151;
+                background: #2f3648;
                 color: #fff;
             }
             .choices__button {
@@ -1837,6 +1889,14 @@ search_template = '''
             }
             .loading {
                 color: #aaa;
+            }
+            .choices__placeholder {
+                color: #9ca3af;
+                opacity: 0.8;
+            }
+            .search-bottom .choices {
+                background: #1f2330;
+                border-color: #343948;
             }
             .inline-toggle {
                 background: #1f2330;
@@ -2350,6 +2410,27 @@ surprise_template = '''
             padding: 0;
             background: #f0f2f5;
         }
+        .stats-inline {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .stat-chip {
+            background: #f5f6fa;
+            border-radius: 6px;
+            padding: 6px 10px;
+            min-width: 120px;
+            text-align: right;
+        }
+        .stat-chip .label {
+            font-size: 11px;
+            color: #6b7280;
+        }
+        .stat-chip .value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a73e8;
+        }
         .container { max-width: 1100px; margin: 0 auto; padding: 10px; }
         .header {
             background: #fff;
@@ -2377,7 +2458,7 @@ surprise_template = '''
         }
         .search-bottom {
             display: grid;
-            grid-template-columns: repeat(2, minmax(280px, 1fr)) repeat(3, max-content);
+            grid-template-columns: repeat(2, minmax(200px, 1fr)) auto auto auto;
             gap: 8px;
             align-items: center;
             margin-bottom: 6px;
@@ -2387,7 +2468,7 @@ surprise_template = '''
             padding: 8px 10px;
             border: 1px solid #ddd;
             border-radius: 6px;
-            min-height: 40px;
+            min-height: 44px;
         }
         .search-top button {
             padding: 10px 18px;
@@ -2406,19 +2487,27 @@ surprise_template = '''
             line-height: 1.4;
             margin-bottom: 6px;
         }
-        .field-stack { display: flex; flex-direction: column; }
+        .field-stack {
+            display: flex;
+            flex-direction: column;
+        }
         .status-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .status-text:empty {
+            display: none;
+            margin-top: 0;
+        }
         .inline-toggle {
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 8px 12px;
+            padding: 8px 14px;
             border: 1px solid #ddd;
             border-radius: 6px;
             background: #fff;
-            min-height: 40px;
+            min-height: 44px;
             font-size: 14px;
             color: #4b5563;
+            box-sizing: border-box;
         }
         .inline-toggle input { width: 16px; height: 16px; }
         .option-select { min-width: 130px; }
@@ -2477,21 +2566,47 @@ surprise_template = '''
             opacity: 0.5;
             cursor: not-allowed;
         }
+        .choices {
+            background: #1f2330;
+            border: 1px solid #343948;
+            border-radius: 6px;
+            color: #e5e7eb;
+        }
         .choices__inner {
             padding: 8px 40px 8px 12px;
             min-height: 44px;
             border-radius: 6px;
+            border: none;
+            background: transparent;
+            color: inherit;
+        }
+        .choices__input {
+            background: transparent;
+            color: inherit;
         }
         .choices__list--dropdown,
         .choices__list {
-            background: #fff;
-            border: 1px solid #ddd;
-            color: #111;
+            background: #1b1f2a;
+            border: 1px solid #343948;
+            color: #e5e7eb;
         }
+        .choices__list--dropdown .choices__item,
+        .choices__list--dropdown .choices__item--selectable,
+        .choices__list--dropdown .choices__item--choice {
+            background: transparent !important;
+            color: inherit;
+        }
+        .choices__list--dropdown .choices__item--choice.is-selected,
+        .choices__list--dropdown .choices__item--choice.is-highlighted,
         .choices__list--dropdown .choices__item--selectable.is-highlighted,
         .choices__item--selectable.is-highlighted {
-            background: #e0e7ff;
-            color: #111;
+            background: #2f3648 !important;
+            color: #fff !important;
+        }
+        .search-bottom .inline-toggle,
+        .search-bottom .option-select {
+            align-self: stretch;
+            height: 44px;
         }
         @media (max-width: 1024px) {
             .search-top,
@@ -2526,7 +2641,13 @@ surprise_template = '''
             .choices__list--dropdown,
             .choices__list { background: #1f2330; border-color: #343948; color: #e5e7eb; }
             .choices__list--dropdown .choices__item--selectable.is-highlighted,
-            .choices__item--selectable.is-highlighted { background: #2f3648; color: #fff; }
+            .choices__item--selectable.is-highlighted { background: inherit; color: inherit; }
+            .stat-chip {
+                background: #232738;
+                color: #e5e7eb;
+            }
+            .stat-chip .label { color: #9ca3af; }
+            .stat-chip .value { color: #60a5fa; }
         }
     </style>
 </head>
@@ -2535,8 +2656,14 @@ surprise_template = '''
         <div class="header">
             <div class="header-top">
                 <h1>Deleted & Surprise Search</h1>
-                <div class="subtitle">Inspect deleted, edited, or legacy posts with full-text search.</div>
+                <div class="stats-inline">
+                    <div class="stat-chip">
+                        <div class="label">Posts indexed</div>
+                        <div class="value" id="surprisePostCount">--</div>
+                    </div>
+                </div>
             </div>
+            <div class="subtitle">Inspect deleted, edited, or legacy posts with full-text search.</div>
             <div class="search-top">
                 <input type="text" id="query" placeholder="Search deleted content...">
                 <input type="date" id="dateFrom">
@@ -2586,6 +2713,7 @@ let totalPages = 1;
 const resultsDiv = document.getElementById("results");
 const summaryEl = document.getElementById("surpriseSummary");
 const paginationEl = document.getElementById("pagination");
+const postCountEl = document.getElementById("surprisePostCount");
 
 function escapeHtml(text) {
     const map = {
@@ -2775,8 +2903,27 @@ document.getElementById("query").addEventListener("keypress", e => {
     }
 });
 
+async function loadStats() {
+    if (!postCountEl) return;
+    try {
+        const res = await fetch("/api/stats");
+        const data = await res.json();
+        if (typeof data.total_posts !== "undefined") {
+            postCountEl.textContent = Number(data.total_posts).toLocaleString();
+        } else if (typeof data.posts !== "undefined") {
+            postCountEl.textContent = Number(data.posts).toLocaleString();
+        } else {
+            postCountEl.textContent = "--";
+        }
+    } catch (err) {
+        console.error("Failed to load stats", err);
+        postCountEl.textContent = "--";
+    }
+}
+
 loadChannels();
 loadMembers();
+loadStats();
 doSearch(1);
 </script>
 </body>
