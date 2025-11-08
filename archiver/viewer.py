@@ -2220,6 +2220,7 @@ search_template = '''
     </script>
 </body>
 </html>
+"""
 '''
 
 surprise_template = """
@@ -2444,91 +2445,3 @@ surprise_template = """
 </body>
 </html>
 """
-
-# Import SOURCE_GUILD_ID from config
-try:
-    from archiver.config import SOURCE_GUILD_ID
-except ImportError:
-    SOURCE_GUILD_ID = '226045346399256576'  # Fallback
-
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description='BlueTracker Database Viewer')
-    parser.add_argument('--host', default='0.0.0.0', help='Host to bind to')
-    parser.add_argument('--port', default=5000, type=int, help='Port to bind to')
-    parser.add_argument('--db', help='Database DSN')
-    args = parser.parse_args()
-    
-    if args.db:
-        app.config['DATABASE_URL'] = args.db
-
-    print(f"Starting viewer on http://{args.host}:{args.port}")
-    print(f"Database: {app.config['DATABASE_URL']}")
-    run_simple(args.host, args.port, app, use_reloader=True, use_debugger=True)
-
-        @media (prefers-color-scheme: dark) {
-            body {
-                background: #0f1116;
-                color: #e5e7eb;
-            }
-            .header,
-            .results,
-            .stats {
-                background: #181b22;
-                box-shadow: none;
-                color: #e5e7eb;
-            }
-            .search-box input,
-            .search-box select,
-            .filters input[type="date"],
-            .filters select,
-            .filters button,
-            .stat-box,
-            .post {
-                background: #1f2330;
-                border-color: #343948;
-                color: #e5e7eb;
-            }
-            .search-box button {
-                background: #2563eb;
-            }
-            .search-box button:active {
-                background: #1d4fd8;
-            }
-            .post {
-                border-bottom-color: #2a3040;
-            }
-            .post-channel,
-            .post-time,
-            .post-link a,
-            .search-help {
-                color: #9ca3af;
-            }
-            .reply-to {
-                background: #222738;
-                border-color: #3b4257;
-                color: #cbd5f5;
-            }
-            .result-summary {
-                color: #cbd5f5;
-            }
-            .choices__inner,
-            .choices__input {
-                background: #1f2330;
-                border-color: #343948;
-                color: #e5e7eb;
-            }
-            .choices__list--dropdown,
-            .choices__list {
-                background: #1f2330;
-                border-color: #343948;
-                color: #e5e7eb;
-            }
-            .choices__item--selectable.is-highlighted {
-                background: #293041;
-                color: #fff;
-            }
-            .choices__button {
-                color: #e5e7eb;
-            }
-        }
