@@ -538,20 +538,23 @@ def search():
     try:
         query       = request.args.get('q', '').strip()
         all_time    = request.args.get('all_time', '0') in ('1', 'true', 'True')
-        gm_id       = request.args.get('gm_id', '').strip() or request.args.get('gm', '').strip()
+        gm_param    = request.args.get('gm_ids') or request.args.get('gm_id') or request.args.get('gm', '')
+        gm_ids      = [value.strip() for value in gm_param.split(',') if value and value.strip()]
         channel_ids = [c for c in request.args.get('channels', '').split(',') if c]
         date_from   = request.args.get('date_from', '')
         date_to     = request.args.get('date_to', '')
         page        = int(request.args.get('page', 1))
         per_page    = min(int(request.args.get('per_page', 50)), 100)
+        sort_param  = request.args.get('sort', 'desc').lower()
+        sort_dir    = 'ASC' if sort_param == 'asc' else 'DESC'
 
-        print(f"[DEBUG] Search params: gm_id='{gm_id}', query='{query}', channels={channel_ids}")
+        print(f"[DEBUG] Search params: gm_ids={gm_ids}, query='{query}', channels={channel_ids}, sort={sort_dir}")
 
         db = get_db()
         start_time = time.time()
 
         # Check if this is a broad "all GMs" search
-        is_broad_search = not gm_id and not channel_ids and not date_from and not date_to and not query
+        is_broad_search = not gm_ids and not channel_ids and not date_from and not date_to and not query
         
         # For broad searches, automatically limit to recent posts
         if is_broad_search and not all_time:
@@ -575,9 +578,10 @@ def search():
             params.extend([str(ch_id) for ch_id in PRIVATE_CHANNELS])
 
         # Specific GM filter
-        if gm_id:
-            where_conditions.append("p.author_id = ?")
-            params.append(str(gm_id))
+        if gm_ids:
+            placeholders = ",".join("?" * len(gm_ids))
+            where_conditions.append(f"p.author_id IN ({placeholders})")
+            params.extend(gm_ids)
 
         # Channel filter
         if channel_ids:
@@ -611,21 +615,13 @@ def search():
         where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
 
         # OPTIMIZED: Postgres full-text search path
+        offset = (page - 1) * per_page
+        order_clause = f"ORDER BY p.created_ts {sort_dir}"
+
         if query:
-            offset = (page - 1) * per_page
             final_query = f"""
                 WITH search_query AS (
                     SELECT websearch_to_tsquery('english', ?) AS query
-                ),
-                ranked AS (
-                    SELECT p.post_id,
-                           ts_rank_cd(p.content_tsv, sq.query) AS rank
-                    FROM gm_posts_view p
-                    CROSS JOIN search_query sq
-                    WHERE {where_clause}
-                      AND p.content_tsv @@ sq.query
-                    ORDER BY rank DESC
-                    LIMIT ? OFFSET ?
                 )
                 SELECT
                     p.post_id as id,
@@ -636,12 +632,15 @@ def search():
                     p.reply_to_id,
                     c.name AS channel_name,
                     COALESCE(g.gm_name, m.display_name, m.username, 'Unknown') as author_name
-                FROM ranked r
-                JOIN gm_posts_view p ON p.post_id = r.post_id
+                FROM gm_posts_view p
+                CROSS JOIN search_query sq
                 LEFT JOIN channels c ON p.chan_id = c.chan_id
                 LEFT JOIN members m ON p.author_id = m.member_id
                 LEFT JOIN gm_names g ON p.author_id = g.author_id
-                ORDER BY r.rank DESC
+                WHERE {where_clause}
+                  AND p.content_tsv @@ sq.query
+                {order_clause}
+                LIMIT ? OFFSET ?
             """
             final_params = [query] + params + [per_page, offset]
         else:
@@ -661,10 +660,10 @@ def search():
                 LEFT JOIN members m ON p.author_id = m.member_id
                 LEFT JOIN gm_names g ON p.author_id = g.author_id
                 WHERE {where_clause}
-                ORDER BY p.created_ts DESC
+                {order_clause}
                 LIMIT ? OFFSET ?
             """
-            final_params = params + [per_page, (page - 1) * per_page]
+            final_params = params + [per_page, offset]
 
         # Execute main query
         cursor = db.execute(final_query, final_params)
@@ -681,7 +680,9 @@ def search():
                 'per_page': per_page,
                 'total_pages': 0,
                 'query_time': round(main_query_time, 2),
-                'info': 'No results found' + (' (limited to last 3 months)' if is_broad_search else '')
+                'info': 'No results found' + (' (limited to last 3 months)' if is_broad_search else ''),
+                'sort': sort_dir.lower(),
+                'gm_ids': gm_ids
             })
 
         # OPTIMIZED: Batch fetch reply data with a single query
@@ -774,13 +775,17 @@ def search():
         print(f"[PERF] Total request time: {total_time:.2f}s")
 
         # Build response
+        info_msg = 'Limited to last 3 months' if is_broad_search and not all_time else ''
+
         response = {
             'results': results,
             'total': total_count,
             'page': page,
             'per_page': per_page,
             'total_pages': total_pages,
-            'query_time': round(total_time, 2)
+            'sort': sort_dir.lower(),
+            'query_time': round(total_time, 2),
+            'info': info_msg
         }
         
         return jsonify(response)
@@ -1202,21 +1207,55 @@ search_template = '''
         
         .header {
             background: white;
-            padding: 15px;
+            padding: 12px 15px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 15px;
         }
-        
-        h1 {
-            font-size: 24px;
-            margin: 0 0 15px 0;
+
+        .header-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
         }
         
+        h1 {
+            font-size: 22px;
+            margin: 0;
+        }
+        
+        .stats-inline {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .stat-chip {
+            background: #f5f6fa;
+            border-radius: 6px;
+            padding: 6px 10px;
+            text-align: right;
+            min-width: 120px;
+        }
+
+        .stat-chip .label {
+            font-size: 11px;
+            color: #6b7280;
+        }
+
+        .stat-chip .value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1a73e8;
+        }
+
         .search-box {
             display: flex;
             gap: 8px;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             flex-wrap: wrap;
         }
         
@@ -1265,7 +1304,7 @@ search_template = '''
             gap: 8px;
             flex-wrap: wrap;
             align-items: center;
-            margin-bottom: 10px;
+            margin-bottom: 6px;
         }
         
         .filters input[type="date"] {
@@ -1317,6 +1356,24 @@ search_template = '''
             height: 20px;
         }
         
+        .result-summary {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #555;
+        }
+        .choices__list--dropdown,
+        .choices__list {
+            background: #fff;
+            border: 1px solid #ddd;
+            color: #111;
+        }
+        
+        .result-summary {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #555;
+        }
+
         .results {
             background: white;
             border-radius: 8px;
@@ -1602,64 +1659,80 @@ search_template = '''
         /* Dark mode support */
         @media (prefers-color-scheme: dark) {
             body {
-                background: #121212;
-                color: #e0e0e0;
+                background: #0f1116;
+                color: #e5e7eb;
             }
-            
             .header,
-            .results,
-            .stats {
-                background: #1e1e1e;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            .results {
+                background: #181b22;
+                box-shadow: none;
+                color: #e5e7eb;
             }
-            
-            .post {
-                border-bottom-color: #333;
+            .stat-chip {
+                background: #232738;
+                color: #e5e7eb;
             }
-            
-            .post-channel,
-            .post-time,
-            .post-link a {
-                color: #999;
+            .stat-chip .label {
+                color: #9ca3af;
             }
-            
-            .stat-box {
-                background: #2a2a2a;
+            .stat-chip .value {
+                color: #60a5fa;
             }
-            
             .search-box input,
             .search-box select,
-            .filters input,
+            .filters input[type="date"],
             .filters select,
             .filters button,
-            .pagination button {
-                background: #2a2a2a;
-                border-color: #444;
-                color: #e0e0e0;
+            .stat-box,
+            .post {
+                background: #1f2330;
+                border-color: #343948;
+                color: #e5e7eb;
             }
-            
-            .choices__inner {
-                background: #2a2a2a;
-                border-color: #444;
+            .search-box button {
+                background: #2563eb;
             }
-            
-            .choices__list--dropdown {
-                background: #2a2a2a;
-                border-color: #444;
+            .search-box button:active {
+                background: #1d4fd8;
             }
-            
-            .choices__item--selectable {
-                color: #e0e0e0;
+            .post {
+                border-bottom-color: #2a3040;
             }
-            
+            .post-channel,
+            .post-time,
+            .post-link a,
+            .search-help {
+                color: #9ca3af;
+            }
             .reply-to {
-                background: #2a2a2a;
-                border-left-color: #444;
+                background: #222738;
+                border-color: #3b4257;
+                color: #cbd5f5;
             }
-            
-            .error {
-                background: #3a1a1a;
-                color: #ff6b6b;
+            .result-summary {
+                color: #cbd5f5;
+            }
+            .choices__inner,
+            .choices__input {
+                background: #1f2330;
+                border-color: #343948;
+                color: #e5e7eb;
+            }
+            .choices__list--dropdown,
+            .choices__list {
+                background: #1f2330;
+                border-color: #343948;
+                color: #e5e7eb;
+            }
+            .choices__item--selectable.is-highlighted {
+                background: #293041;
+                color: #fff;
+            }
+            .choices__button {
+                color: #e5e7eb;
+            }
+            .loading {
+                color: #aaa;
             }
         }
     </style>
@@ -1667,15 +1740,26 @@ search_template = '''
 <body>
     <div class="container">
         <div class="header">
-            <h1>BlueTracker Database Viewer</h1>
+            <div class="header-top">
+                <h1>BlueTracker Database Viewer</h1>
+                <div class="stats-inline" id="statsInline">
+                    <div class="stat-chip">
+                        <div class="label">Posts</div>
+                        <div class="value" id="statPosts">--</div>
+                    </div>
+                    <div class="stat-chip">
+                        <div class="label">GMs</div>
+                        <div class="value" id="statGms">--</div>
+                    </div>
+                </div>
+            </div>
             
             <div class="search-box">
                 <input type="text" id="searchQuery" placeholder="Search posts..." value="">
-                <select id="gmFilter">
-                    <option value="">All GMs</option>
-                </select>
+                <select id="gmFilter" multiple></select>
                 <div id="gmStatus"></div>
                 <button onclick="search()">Search</button>
+                <button type="button" onclick="clearFilters()" style="background:#4b5563;">Reset</button>
             </div>
             
             <div class="search-help">
@@ -1698,7 +1782,11 @@ search_template = '''
                     <input type="checkbox" id="allTime" />
                     All time
                 </label>
-                <button onclick="clearFilters()">Clear</button>
+                <button onclick="clearFilters()">Reset filters</button>
+                <select id="sortOrder">
+                    <option value="desc" selected>Newest first</option>
+                    <option value="asc">Oldest first</option>
+                </select>
                 <select id="pageSize">
                     <option value="20">20/page</option>
                     <option value="50" selected>50/page</option>
@@ -1713,10 +1801,7 @@ search_template = '''
             </div>
         </div>
         
-        <div class="stats" id="stats" style="display:none;">
-            <h2>Database Statistics</h2>
-            <div class="stats-grid" id="statsGrid"></div>
-        </div>
+        <div class="result-summary" id="resultSummary">Use the filters above to search the archive.</div>
         
         <div class="results" id="results">
             <div class="loading">Loading...</div>
@@ -1732,6 +1817,7 @@ search_template = '''
         let currentPage = 1;
         let totalPages = 1;
         let channelChoices;
+        let gmChoices;
         
         // Status indicators
         function showLoadingStatus(elementId, message) {
@@ -1776,6 +1862,13 @@ search_template = '''
                     option.value = gm.id;
                     option.textContent = gm.name;
                     select.appendChild(option);
+                });
+
+                gmChoices = new Choices(select, {
+                    removeItemButton: true,
+                    placeholderValue: 'Select GM(s)…',
+                    searchPlaceholderValue: 'Type to search GMs',
+                    shouldSort: true
                 });
                 
                 showReadyStatus('gmStatus', `${gms.length} GMs loaded`);
@@ -1827,24 +1920,40 @@ search_template = '''
             return channelChoices ? channelChoices.getValue(true).join(',') : '';
         }
 
+        function selectedGmIds() {
+            return gmChoices ? gmChoices.getValue(true).join(',') : '';
+        }
+
         function readFiltersFromUI() {
+            const gmValues = selectedGmIds();
             return {
                 q:        document.getElementById('searchQuery').value,
-                gm:       document.getElementById('gmFilter').value,
+                gm:       gmValues,
+                gm_ids:   gmValues,
                 channels: selectedChannelIds(),        // already returns "id1,id2"
                 from:     document.getElementById('dateFrom').value,
                 to:       document.getElementById('dateTo').value,
                 page:     currentPage,
                 per_page: parseInt(document.getElementById('pageSize').value, 10),
-                all_time:  document.getElementById('allTime').checked ? '1' : '0'
+                all_time:  document.getElementById('allTime').checked ? '1' : '0',
+                sort:      document.getElementById('sortOrder').value
            };
         }
 
         function applyFiltersToUI(f) {
             document.getElementById('searchQuery').value = f.q   || '';
-            document.getElementById('gmFilter').value    = f.gm_id || f.gm || '';
+            const gmList = (f.gm_ids || f.gm || f.gm_id || '').split(',').filter(Boolean);
+            if (gmChoices) {
+                gmChoices.removeActiveItems();
+                gmList.forEach(id => gmChoices.setChoiceByValue(id));
+            } else {
+                document.getElementById('gmFilter').value = gmList[0] || '';
+            }
             document.getElementById('dateFrom').value     = f.from || '';
             document.getElementById('dateTo').value       = f.to   || '';
+            document.getElementById('sortOrder').value    = f.sort || 'desc';
+            document.getElementById('allTime').checked    = f.all_time === '1';
+            document.getElementById('pageSize').value     = f.per_page || '50';
         
             /* channels: set via Choices.js */
             if (channelChoices) {
@@ -1859,59 +1968,14 @@ search_template = '''
         // Load statistics
         async function loadStats() {
             try {
-                // Show stats section immediately
-                document.getElementById('stats').style.display = 'block';
-                
-                // Load basic stats first (fast)
                 const response = await fetch('/api/stats');
                 const stats = await response.json();
-                
-                const statsGrid = document.getElementById('statsGrid');
-                statsGrid.innerHTML = `
-                    <div class="stat-box">
-                        <div class="stat-number">${stats.total_posts.toLocaleString()}</div>
-                        <div class="stat-label">Total Posts</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-number">${stats.total_gms}</div>
-                        <div class="stat-label">Total GMs</div>
-                    </div>
-                `;
-                
-                // Load detailed stats in background (slower)
-                setTimeout(async () => {
-                    try {
-                        const detailedResponse = await fetch('/api/stats/detailed');
-                        const detailedStats = await detailedResponse.json();
-                        
-                        // Replace loading indicator with actual data
-                        const loadingBox = document.getElementById('loadingDetailedStats');
-                        if (loadingBox && detailedStats.top_gms && detailedStats.top_gms.length > 0) {
-                            const topGM = detailedStats.top_gms[0];
-                            loadingBox.innerHTML = `
-                                <div class="stat-number">${topGM.count.toLocaleString()}</div>
-                                <div class="stat-label">Top GM Posts (${topGM.name})</div>
-                            `;
-                            loadingBox.removeAttribute('id');
-                        } else if (loadingBox) {
-                            loadingBox.remove();
-                        }
-                    } catch (e) {
-                        console.log('Detailed stats unavailable:', e);
-                        const loadingBox = document.getElementById('loadingDetailedStats');
-                        if (loadingBox) {
-                            loadingBox.remove();
-                        }
-                    }
-                }, 2000); // Load after 2 seconds
-                
+                document.getElementById('statPosts').textContent = stats.total_posts.toLocaleString();
+                document.getElementById('statGms').textContent = stats.total_gms.toLocaleString();
             } catch (error) {
                 console.error('Failed to load stats:', error);
-                document.getElementById('statsGrid').innerHTML = `
-                    <div class="stat-box">
-                        <div class="stat-label" style="color: #dc3545;">Stats unavailable</div>
-                    </div>
-                `;
+                document.getElementById('statPosts').textContent = '--';
+                document.getElementById('statGms').textContent = '--';
             }
         }
         
@@ -1919,35 +1983,46 @@ search_template = '''
         async function search(page = 1) {
             currentPage = page;
 
-            const f = readFiltersFromUI();
-            f.page = page;
-            const url = new URL(window.location);
-            Object.entries(f).forEach(([k, v]) =>
-                v ? url.searchParams.set(k, v) : url.searchParams.delete(k)
-            );
+        const f = readFiltersFromUI();
+        f.page = page;
+        const url = new URL(window.location);
+        const shareable = {...f};
+        delete shareable.gm;
+        Object.entries(shareable).forEach(([k, v]) =>
+            v ? url.searchParams.set(k, v) : url.searchParams.delete(k)
+        );
             history.replaceState(null, '', url);
             localStorage.setItem('btFilters', JSON.stringify(f));
             
-            const params = new URLSearchParams({
-                q: f.q, gm_id: f.gm, channels: f.channels,
-                date_from: f.from, date_to: f.to,
-                page: f.page, per_page: f.per_page,
-                all_time: f.all_time
-            });
+        const params = new URLSearchParams({
+            q: f.q, gm_ids: f.gm_ids, channels: f.channels,
+            date_from: f.from, date_to: f.to,
+            page: f.page, per_page: f.per_page,
+            all_time: f.all_time, sort: f.sort
+        });
             
-            const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
+        const resultsDiv = document.getElementById('results');
+        const summaryEl = document.getElementById('resultSummary');
+        summaryEl.textContent = 'Searching...';
+        resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
             
             try {
                 const response = await fetch('/api/search?' + params);
                 const data = await response.json();
                 
-                totalPages = data.total_pages;
+                totalPages = data.total_pages || 1;
                 
                 if (data.results.length === 0) {
                     resultsDiv.innerHTML = '<div class="loading">No results found</div>';
+                    summaryEl.textContent = data.info || 'No results found.';
                     return;
                 }
+
+                const total = data.total || 0;
+                const startIdx = ((data.page - 1) * data.per_page) + 1;
+                const endIdx = startIdx + data.results.length - 1;
+                const infoTail = data.info ? ` • ${data.info}` : '';
+                summaryEl.textContent = `${total.toLocaleString()} results • Showing ${startIdx}-${endIdx} • Page ${data.page} of ${Math.max(1, data.total_pages || 1)} • ${data.sort === 'asc' ? 'Oldest first' : 'Newest first'}${infoTail}`;
                 
                 resultsDiv.innerHTML = data.results.map(post => `
                     <div class="post">
@@ -1980,7 +2055,9 @@ search_template = '''
                 updatePagination();
                 
             } catch (error) {
+                console.error('Search failed', error);
                 resultsDiv.innerHTML = '<div class="error">Search failed: ' + error.message + '</div>';
+                document.getElementById('resultSummary').textContent = 'Search failed.';
             }
         }
         
@@ -2021,13 +2098,16 @@ search_template = '''
         // Clear all filters
         function clearFilters() { 
             document.getElementById('searchQuery').value = '';
-            document.getElementById('gmFilter').value = '';
-            channelChoices.removeActiveItems(); 
+            if (gmChoices) gmChoices.removeActiveItems();
+            if (channelChoices) channelChoices.removeActiveItems();
             document.getElementById('dateFrom').value = '';
             document.getElementById('dateTo').value = '';
+            document.getElementById('allTime').checked = false;
+            document.getElementById('sortOrder').value = 'desc';
+            document.getElementById('pageSize').value = '50';
             history.replaceState(null,'',location.pathname);
             localStorage.removeItem('btFilters');
-            search(); 
+            search(1); 
         }
         
         // Utility functions
@@ -2088,6 +2168,8 @@ search_template = '''
             document.getElementById('pageSize').addEventListener('change', () => {
                 search(1); // restart from page 1 with new page size
             });
+            document.getElementById('sortOrder').addEventListener('change', () => search(1));
+            document.getElementById('allTime').addEventListener('change', () => search(1));
             
             // Handle clicks with better mobile support
             document.getElementById('results').addEventListener('click', e => {
@@ -2384,3 +2466,69 @@ if __name__ == '__main__':
     print(f"Database: {app.config['DATABASE_URL']}")
     run_simple(args.host, args.port, app, use_reloader=True, use_debugger=True)
 
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #0f1116;
+                color: #e5e7eb;
+            }
+            .header,
+            .results,
+            .stats {
+                background: #181b22;
+                box-shadow: none;
+                color: #e5e7eb;
+            }
+            .search-box input,
+            .search-box select,
+            .filters input[type="date"],
+            .filters select,
+            .filters button,
+            .stat-box,
+            .post {
+                background: #1f2330;
+                border-color: #343948;
+                color: #e5e7eb;
+            }
+            .search-box button {
+                background: #2563eb;
+            }
+            .search-box button:active {
+                background: #1d4fd8;
+            }
+            .post {
+                border-bottom-color: #2a3040;
+            }
+            .post-channel,
+            .post-time,
+            .post-link a,
+            .search-help {
+                color: #9ca3af;
+            }
+            .reply-to {
+                background: #222738;
+                border-color: #3b4257;
+                color: #cbd5f5;
+            }
+            .result-summary {
+                color: #cbd5f5;
+            }
+            .choices__inner,
+            .choices__input {
+                background: #1f2330;
+                border-color: #343948;
+                color: #e5e7eb;
+            }
+            .choices__list--dropdown,
+            .choices__list {
+                background: #1f2330;
+                border-color: #343948;
+                color: #e5e7eb;
+            }
+            .choices__item--selectable.is-highlighted {
+                background: #293041;
+                color: #fff;
+            }
+            .choices__button {
+                color: #e5e7eb;
+            }
+        }
