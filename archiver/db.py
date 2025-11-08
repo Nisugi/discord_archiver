@@ -477,7 +477,9 @@ async def get_messages_ready_to_repost(db):
             SELECT p.post_id, p.chan_id, p.author_id, p.created_ts, p.content
             FROM posts p
             JOIN members m ON p.author_id = m.member_id
-            WHERE p.post_id = ? AND p.deleted = FALSE AND m.is_gm = TRUE
+            WHERE p.post_id = ?
+              AND NOT """ + _is_true_expr("p.deleted") + """
+              AND """ + _is_true_expr("m.is_gm") + """
             """,
             (msg_id,),
         )
