@@ -116,6 +116,15 @@ message_queue = queue.Queue()
 app = Flask(__name__)
 app.config['DATABASE_URL'] = DATABASE_URL
 
+TRUTHY_SQL = "COALESCE({}::text, '0') IN ('1','t','true')"
+
+
+def _truthy(column: str) -> str:
+    return TRUTHY_SQL.format(column)
+
+
+def _falsy(column: str) -> str:
+    return f"NOT ({_truthy(column)})"
 
 def _create_connection():
     conn = psycopg.connect(app.config['DATABASE_URL'], row_factory=dict_row)
@@ -286,7 +295,7 @@ def get_gms():
                 COALESCE(g.gm_name, m.display_name, m.username, 'Unknown') as display_name
             FROM members m
             LEFT JOIN gm_names g ON m.member_id = g.author_id
-            WHERE m.is_gm = 1
+            WHERE """ + _truthy("m.is_gm") + """
             ORDER BY display_name
             LIMIT 200
         """)
@@ -840,7 +849,7 @@ def get_stats():
                     total_posts = cursor.fetchone()['count']
 
                     # Count GMs
-                    cursor = temp_db.execute("SELECT COUNT(*) as count FROM members WHERE is_gm = 1")
+                    cursor = temp_db.execute(f"SELECT COUNT(*) as count FROM members WHERE {_truthy('is_gm')}")
                     total_gms = cursor.fetchone()['count']
 
                     upsert_sql = """
@@ -909,7 +918,7 @@ def get_posts_v1():
         JOIN members m ON p.author_id = m.member_id
         LEFT JOIN channels c ON p.chan_id = c.chan_id
         LEFT JOIN gm_names g ON p.author_id = g.author_id
-        WHERE m.is_gm = 1
+        WHERE {_truthy('m.is_gm')}
         {order_clause}
         LIMIT ?
     """, (limit,))
@@ -933,7 +942,7 @@ def get_posts_v1():
 def get_post_v1(post_id):
     """Ruby-compatible single post endpoint"""
     db = get_db()
-    cursor = db.execute("""
+    cursor = db.execute(f"""
         SELECT 
             p.post_id as id,
             p.chan_id,
@@ -947,7 +956,7 @@ def get_post_v1(post_id):
         JOIN members m ON p.author_id = m.member_id
         LEFT JOIN channels c ON p.chan_id = c.chan_id
         LEFT JOIN gm_names g ON p.author_id = g.author_id
-        WHERE p.post_id = ? AND m.is_gm = 1
+        WHERE p.post_id = ? AND {_truthy('m.is_gm')}
     """, (post_id,))
     
     row = cursor.fetchone()
@@ -986,7 +995,8 @@ def get_post_any(post_id):
         LEFT JOIN members m ON p.author_id = m.member_id
         LEFT JOIN channels c ON p.chan_id = c.chan_id
         LEFT JOIN gm_names g ON p.author_id = g.author_id
-        WHERE p.post_id = ? AND p.deleted = 0
+        WHERE p.post_id = ?
+          AND {_falsy('p.deleted')}
     """, (post_id,))
     
     row = cursor.fetchone()
@@ -1035,7 +1045,10 @@ def surprise_search():
         params        = []
 
         # deleted filter
-        where_clauses.append("p.deleted = 1" if deleted_only else "(p.deleted = 0 OR p.deleted = 1)")
+        if deleted_only:
+            where_clauses.append(_truthy("p.deleted"))
+        else:
+            where_clauses.append(_falsy("p.deleted"))
 
         # FTS clause
         if q:
