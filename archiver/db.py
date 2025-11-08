@@ -117,8 +117,8 @@ CREATE OR REPLACE VIEW gm_posts_view AS
 SELECT p.*
 FROM posts p
 JOIN members m ON m.member_id = p.author_id
-WHERE (m.is_gm::int) = 1
-  AND COALESCE(p.deleted::int, 0) = 0;
+WHERE COALESCE((m.is_gm)::text, '0') IN ('1','t','true')
+  AND NOT (COALESCE((p.deleted)::text, '0') IN ('1','t','true'));
 
 CREATE INDEX IF NOT EXISTS idx_posts_chan_ts   ON posts (chan_id, created_ts DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_author_ts ON posts (author_id, created_ts DESC);
@@ -505,7 +505,7 @@ async def mark_message_as_reposted(db, msg_id):
 
 async def mark_message_as_deleted(db, msg_id):
     del db
-    await execute_with_retry(None, "UPDATE posts SET deleted = TRUE WHERE post_id = ?", (str(msg_id),))
+    await execute_with_retry(None, "UPDATE posts SET deleted = '1' WHERE post_id = ?", (str(msg_id),))
     await mark_message_as_reposted(None, msg_id)
 
 
@@ -515,12 +515,17 @@ async def get_gm_display_name(db, author_id, fallback_name):
     return row["gm_name"] if row else fallback_name
 
 
+def _is_true_expr(column: str) -> str:
+    return f"COALESCE(({column})::text, '0') IN ('1','t','true')"
+
+
 async def seed_gm_data(db):
     del db
     for author_id in SEED_BLUE_IDS:
         await execute_with_retry(
             None,
-            "INSERT INTO members (member_id, is_gm) VALUES (?, TRUE) ON CONFLICT (member_id) DO UPDATE SET is_gm = TRUE",
+            "INSERT INTO members (member_id, is_gm) VALUES (?, '1') "
+            "ON CONFLICT (member_id) DO UPDATE SET is_gm = '1'",
             (str(author_id),),
         )
     for author_id, gm_name in GM_NAME_OVERRIDES.items():
@@ -539,10 +544,12 @@ async def verify_gm_seeding(db):
     del db
     rows = await fetchall(
         None,
-        "SELECT member_id, is_gm FROM members WHERE member_id = ANY($1::text[])",
+        "SELECT member_id FROM members "
+        "WHERE member_id = ANY($1::text[]) "
+        f"AND {_is_true_expr('is_gm')}",
         (list(str(i) for i in SEED_BLUE_IDS),),
     )
-    found_ids = {row["member_id"] for row in rows if row["is_gm"]}
+    found_ids = {row["member_id"] for row in rows}
     missing = set(str(i) for i in SEED_BLUE_IDS) - found_ids
     if missing:
         print(f"[DB] Warning: Missing GM flags for {len(missing)} IDs")
@@ -551,7 +558,7 @@ async def verify_gm_seeding(db):
 
 async def reseed_gm_data_if_needed(db):
     del db
-    cursor = await fetchone(None, "SELECT COUNT(*) AS count FROM members WHERE is_gm = TRUE")
+    cursor = await fetchone(None, f"SELECT COUNT(*) AS count FROM members WHERE {_is_true_expr('is_gm')}")
     gm_count = cursor["count"] if cursor else 0
     if gm_count < len(SEED_BLUE_IDS):
         print("[DB] GM count mismatch; reseeding")
@@ -563,9 +570,10 @@ async def check_gm_data_integrity(db):
     print("[DB] Checking GM data integrity...")
     rows = await fetchall(
         None,
-        """
+        f"""
         SELECT member_id FROM members
-        WHERE member_id = ANY($1::text[]) AND (is_gm IS NULL OR is_gm = FALSE)
+        WHERE member_id = ANY($1::text[])
+          AND NOT {_is_true_expr('is_gm')}
         """,
         (list(str(i) for i in SEED_BLUE_IDS),),
     )

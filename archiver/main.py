@@ -93,7 +93,7 @@ async def _handle_edit(before: discord.Message, after: discord.Message):
 
 async def _handle_delete(msg: discord.Message):
     ts = int(time.time() * 1000)
-    await execute_with_retry(db, "UPDATE posts SET deleted = 1 WHERE post_id = ?", (str(msg.id),))
+    await execute_with_retry(db, "UPDATE posts SET deleted = '1' WHERE post_id = ?", (str(msg.id),))
     await execute_with_retry(
         db,
         """INSERT INTO post_revisions
