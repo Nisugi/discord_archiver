@@ -222,17 +222,26 @@ async def iter_all_threads(parent: discord.abc.GuildChannel):
         raise
 
 async def slow_crawl(src_guild, db, build_snippet, client):
-    """Main crawler loop - crawls back CUTOFF_DAYS then stops"""
+    """Main crawler loop - crawls back 10 days then stops"""
     global inaccessible_channels, finished_channels, crawler_active
     finished_channels = set()  # Reset for this crawl run
 
+    # Ensure progress table exists
+
+    
     me = src_guild.get_member(client.user.id) or await src_guild.fetch_member(client.user.id)
     cutoff = datetime.utcnow().replace(tzinfo=timezone.utc) - timedelta(days=CUTOFF_DAYS)
-
+    
+    cleanup_counter = 0
+    
     # Calculate accessible channels
-    text_like_channels = [c for c in src_guild.channels if isinstance(c, (TextChannel, ForumChannel))]
-    all_channels = list(text_like_channels)
-
+    text_like_channels = []
+    for c in src_guild.channels:
+        if isinstance(c, (TextChannel, ForumChannel)):
+            text_like_channels.append(c)
+    
+    all_channels = [c for c in text_like_channels]  # Don't filter anything out during crawl
+    
     print(f"[crawler] Starting {CUTOFF_DAYS}-day backfill crawler")
     print(f"[crawler] Total channels: {len(text_like_channels)}, Non-ignored: {len(all_channels)}")
     print(f"[crawler] Cutoff date: {cutoff.strftime('%Y-%m-%d %H:%M:%S')} UTC")
@@ -240,55 +249,53 @@ async def slow_crawl(src_guild, db, build_snippet, client):
     channels_processed = 0
     threads_processed = 0
     start_time = time.time()
-
-    try:
-        # Crawl all channels and threads
-        for parent in all_channels:
-            if parent.id in inaccessible_channels:
+    
+    # Crawl all channels and threads
+    for parent in all_channels:
+        if parent.id in inaccessible_channels:
+            continue
+            
+        channels_processed += 1
+        print(f"\n[crawler] 📁 Processing channel #{parent.name} ({channels_processed}/{len(all_channels)})")
+        
+        # Crawl the parent channel
+        finished = await crawl_one(parent, cutoff, me, db, build_snippet)
+        await asyncio.sleep(REQ_PAUSE)
+        
+        # Crawl all threads in this channel
+        thread_count = 0
+        async for th in iter_all_threads(parent):
+            if th.id in inaccessible_channels or th.id in finished_channels:
                 continue
 
-            channels_processed += 1
-            print(f"\n[crawler] 📁 Processing channel #{parent.name} ({channels_processed}/{len(all_channels)})")
-
-            # Crawl the parent channel
-            finished = await crawl_one(parent, cutoff, me, db, build_snippet)
+            thread_count += 1
+            threads_processed += 1
+            print(f"[crawler] 🧵 Processing thread #{th.name} (#{thread_count} in #{parent.name})")
+            await crawl_one(th, cutoff, me, db, build_snippet)
             await asyncio.sleep(REQ_PAUSE)
-
-            # Crawl all threads in this channel
-            thread_count = 0
-            async for th in iter_all_threads(parent):
-                if th.id in inaccessible_channels or th.id in finished_channels:
-                    continue
-
-                thread_count += 1
-                threads_processed += 1
-                print(f"[crawler] 🧵 Processing thread #{th.name} (#{thread_count} in #{parent.name})")
-                await crawl_one(th, cutoff, me, db, build_snippet)
-                await asyncio.sleep(REQ_PAUSE)
-
-            if thread_count > 0:
-                print(f"[crawler] ✅ Completed #{parent.name} - processed {thread_count} threads")
-
-        # Calculate and display final statistics
-        elapsed_time = time.time() - start_time
-        hours = int(elapsed_time // 3600)
-        minutes = int((elapsed_time % 3600) // 60)
-
-        print(f"\n[crawler] 🏁 BACKFILL COMPLETE!")
-        print(f"[crawler] 📊 Final statistics:")
-        print(f"[crawler]    - Channels processed: {channels_processed}")
-        print(f"[crawler]    - Threads processed: {threads_processed}")
-        print(f"[crawler]    - Messages saved: {save_counter:,}")
-        print(f"[crawler]    - Inaccessible channels: {len(inaccessible_channels)}")
-        print(f"[crawler]    - Time elapsed: {hours}h {minutes}m")
-        print(f"[crawler] ✅ Crawler task shutting down - backfill complete!")
-
-    except asyncio.CancelledError:
-        print("[crawler] ⚠️ Crawler task cancelled - stopping current crawl.")
-        raise
-    finally:
-        crawler_active = False
-        cleanup_caches()
+        
+        if thread_count > 0:
+            print(f"[crawler] ✅ Completed #{parent.name} - processed {thread_count} threads")
+    
+    # Calculate and display final statistics
+    elapsed_time = time.time() - start_time
+    hours = int(elapsed_time // 3600)
+    minutes = int((elapsed_time % 3600) // 60)
+    
+    print(f"\n[crawler] 🏁 BACKFILL COMPLETE!")
+    print(f"[crawler] 📊 Final statistics:")
+    print(f"[crawler]    - Channels processed: {channels_processed}")
+    print(f"[crawler]    - Threads processed: {threads_processed}")
+    print(f"[crawler]    - Messages saved: {save_counter:,}")
+    print(f"[crawler]    - Inaccessible channels: {len(inaccessible_channels)}")
+    print(f"[crawler]    - Time elapsed: {hours}h {minutes}m")
+    print(f"[crawler] ✅ Crawler task shutting down - backfill complete!")
+    
+    # Set crawler as inactive
+    crawler_active = False
+    
+    # Cleanup
+    cleanup_caches()
 
 def get_inaccessible_count():
     """Get count of cached inaccessible channels (for monitoring)"""

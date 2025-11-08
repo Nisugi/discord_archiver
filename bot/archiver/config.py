@@ -186,6 +186,7 @@ SEED_BLUE_IDS = {
 }
 
 GM_NAME_OVERRIDES = {
+    928613234263605298: "Naijin 2.0",          # spiffyjr
     84034005221019648: "Naijin",           # spiffyjr
     111937766157291520: "Estild",          # glyph.dev  
     308821099863605249: "Wyrom",           # Keep as Wyrom
