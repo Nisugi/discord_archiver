@@ -15,7 +15,7 @@ except Exception:
     print("[Archiver] Warning: Could not import TOKEN from config")
 
 from .db import (
-    open_db, close_db, fetchone, fetchall, save_message, check_database_health,
+    open_db, close_db, fetchone, fetchall, save_message,
     update_gm_fts, add_to_repost_queue, get_messages_ready_to_repost,
     mark_message_as_reposted, mark_message_as_deleted, execute_with_retry
 )
@@ -31,37 +31,6 @@ _pending_edits: deque[tuple[discord.Message, discord.Message]] = deque()
 _pending_deletes: deque[discord.Message] = deque()
 
 # ── Helper functions ────────────────────────────────────────────────
-async def initialize_stats_cache(db):
-    try:
-        print("[Archiver] Updating stats cache.")
-        row = await fetchone(db, "SELECT COUNT(*) FROM gm_posts_view")
-        total_posts = row[0] if row else 0
-        row = await fetchone(db, "SELECT COUNT(*) FROM members WHERE is_gm = 1")
-        total_gms = row[0] if row else 0
-        now_ms = int(time.time() * 1000)
-        upsert_sql = """
-            INSERT INTO bot_metadata (key, value, updated_at)
-            VALUES (?, ?, ?)
-            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
-        """
-        await execute_with_retry(db, upsert_sql, ('stats_total_posts', str(total_posts), now_ms))
-        await execute_with_retry(db, upsert_sql, ('stats_total_gms', str(total_gms), now_ms))
-        await execute_with_retry(db, upsert_sql, ('stats_last_updated', str(now_ms), now_ms))
-        print(f"[Archiver] Stats cache updated: {total_posts:,} posts, {total_gms} GMs")
-    except Exception as e:
-        print(f"[Archiver] Failed to update stats cache: {e}")
-
-async def initialize_gm_names(db):
-    from .config import GM_NAME_OVERRIDES
-    upsert_sql = """
-        INSERT INTO gm_names (author_id, gm_name, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT (author_id) DO UPDATE SET gm_name = EXCLUDED.gm_name, updated_at = EXCLUDED.updated_at
-    """
-    for author_id, gm_name in GM_NAME_OVERRIDES.items():
-        await execute_with_retry(db, upsert_sql, (author_id, gm_name, int(time.time() * 1000)))
-    print(f"[DB] Initialized {len(GM_NAME_OVERRIDES)} GM name overrides")
-
 async def notify_flask_server(msg: discord.Message, author_name: str):
     import aiohttp
     try:
@@ -207,16 +176,6 @@ async def on_ready():
         else:
             print("[Archiver] ⚠️ GM seeding verification failed - check logs")
 
-        await initialize_stats_cache(db)
-
-        row = await fetchone(db, "SELECT value FROM bot_metadata WHERE key = 'stats_total_posts'")
-        total_posts = int(row[0]) if row else 0
-        print(f"[DB] posts table currently holds {total_posts:,} rows.")
-
-        row = await fetchone(db, "SELECT value FROM bot_metadata WHERE key = 'stats_total_gms'")
-        total_gms = int(row[0]) if row else 0
-        print(f"[DB] Identified {total_gms} GMs in database")
-
         # Background tasks
         print("[Archiver] Starting background tasks.")
         print(f"[Repost] task started id={id(asyncio.current_task())}")
@@ -298,9 +257,5 @@ if __name__ == "__main__":
     print("[Archiver] Starting BlueTracker.")
     if not TOKEN:
         print("[Archiver] ERROR: No Discord token available!")
-        print("[Archiver] Running in web-only mode...")
-        from .viewer import app
-        print("[Archiver] Starting Flask directly on 0.0.0.0:8080")
-        app.run(host='0.0.0.0', port=8080, debug=False)
-    else:
-        asyncio.run(main())
+        raise SystemExit(1)
+    asyncio.run(main())

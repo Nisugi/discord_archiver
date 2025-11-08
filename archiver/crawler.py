@@ -24,6 +24,12 @@ async def get_last_seen_id(db, chan_id):
 async def update_last_seen_id(db, chan_id, message_id):
     """Update the last message ID we've seen in this channel"""
     timestamp = int(time.time() * 1000)
+    try:
+        last_seen_int = int(message_id)
+    except (TypeError, ValueError):
+        # Fallback to the raw value if it can't be coerced; keep crawler running
+        last_seen_int = message_id
+
     await execute_with_retry(
         db,
         """
@@ -33,7 +39,7 @@ async def update_last_seen_id(db, chan_id, message_id):
         SET last_seen_id = EXCLUDED.last_seen_id,
             updated_at = EXCLUDED.updated_at
         """,
-        (str(chan_id), str(message_id), timestamp)
+        (str(chan_id), last_seen_int, timestamp)
     )
 
 async def save_channel(db, chan_id, name, accessible=True, parent_id=None):

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import time
 from typing import Any, Iterable, Optional, Sequence
 
@@ -158,6 +159,9 @@ def _split_statements(sql: str) -> Iterable[str]:
         yield trailing
 
 
+RUN_SCHEMA_ON_STARTUP = os.getenv("RUN_SCHEMA_ON_STARTUP", "0") == "1"
+
+
 async def open_db() -> asyncpg.Pool:
     """Create (or return) the asyncpg pool and ensure schema exists."""
     global _pool
@@ -170,9 +174,10 @@ async def open_db() -> asyncpg.Pool:
         max_size=10,
         command_timeout=60,
     )
-    async with _pool.acquire() as conn:
-        for stmt in _split_statements(SCHEMA_SQL):
-            await conn.execute(stmt)
+    if RUN_SCHEMA_ON_STARTUP:
+        async with _pool.acquire() as conn:
+            for stmt in _split_statements(SCHEMA_SQL):
+                await conn.execute(stmt)
     return _pool
 
 
