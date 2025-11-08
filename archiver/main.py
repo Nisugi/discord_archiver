@@ -217,20 +217,6 @@ async def on_ready():
         total_gms = int(row[0]) if row else 0
         print(f"[DB] Identified {total_gms} GMs in database")
 
-        # Start viewer
-        print("[Archiver] Starting web viewer.")
-        try:
-            from .viewer_launcher import start_viewer_thread
-            start_viewer_thread()
-            await asyncio.sleep(2)
-            print("[Archiver] Web viewer started successfully")
-        except ImportError as e:
-            print(f"[Archiver] Warning: Could not start web viewer: {e}")
-        except Exception as e:
-            print(f"[Archiver] Warning: Web viewer failed to start: {e}")
-            import traceback
-            traceback.print_exc()
-
         # Background tasks
         print("[Archiver] Starting background tasks.")
         print(f"[Repost] task started id={id(asyncio.current_task())}")
