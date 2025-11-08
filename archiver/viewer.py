@@ -1,8 +1,9 @@
 import os
 import re
+import time
+import argparse
 import psycopg
 from psycopg.rows import dict_row
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, request, jsonify, g, Response, send_from_directory, abort
@@ -1252,44 +1253,94 @@ search_template = '''
             color: #1a73e8;
         }
 
-        .search-box {
-            display: flex;
+        .search-top {
+            display: grid;
+            grid-template-columns: minmax(320px, 1fr) repeat(2, minmax(140px, 180px)) repeat(2, max-content);
             gap: 8px;
-            margin-bottom: 10px;
-            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 4px;
         }
         
-        .search-box input, .search-box select {
-            padding: 10px;
+        .search-bottom {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(280px, 1fr)) repeat(3, max-content);
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        
+        .search-top input,
+        .search-bottom select,
+        .search-bottom input[type="checkbox"],
+        .search-bottom label {
+            font-size: 15px;
+        }
+        
+        .search-top input,
+        .search-bottom select {
+            padding: 8px 10px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 16px; /* Prevent zoom on iOS */
-            min-height: 44px; /* Touch target size */
+            min-height: 40px;
         }
         
-        .search-box input[type="text"] {
-            flex: 1;
-            min-width: 200px;
+        .search-top input[type="text"] {
+            width: 100%;
         }
         
-        .search-box select {
+        .search-top button {
+            padding: 10px 18px;
+            font-size: 15px;
+            min-height: 40px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            color: white;
+        }
+        
+        .btn-primary {
+            background: #1a73e8;
+        }
+        
+        .btn-primary:active {
+            background: #1557b0;
+        }
+        
+        .btn-secondary {
+            background: #4b5563;
+        }
+        
+        .status-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        
+        .inline-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            min-height: 40px;
+            font-size: 14px;
+            color: #4b5563;
+        }
+        
+        .inline-toggle input {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .option-select {
             min-width: 120px;
         }
         
-        .search-box button {
-            padding: 10px 20px;
-            background: #1a73e8;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-            min-height: 44px;
-            white-space: nowrap;
-        }
-        
-        .search-box button:active {
-            background: #1557b0;
+        .field-stack {
+            display: flex;
+            flex-direction: column;
         }
         
         .search-help {
@@ -1338,7 +1389,7 @@ search_template = '''
             width: 100%;
         }
         
-        /* Choices.js mobile overrides */
+        /* Choices.js overrides */
         .choices__inner {
             padding: 8px 40px 8px 12px;
             min-height: 44px;
@@ -1354,6 +1405,51 @@ search_template = '''
         .choices__button {
             width: 20px;
             height: 20px;
+        }
+
+        .choices__list--dropdown,
+        .choices__list {
+            background: #fff;
+            border: 1px solid #ddd;
+            color: #111;
+        }
+
+        .choices__list--dropdown .choices__item--selectable.is-highlighted,
+        .choices__item--selectable.is-highlighted {
+            background: #e0e7ff;
+            color: #111;
+        }
+        
+        .choices__list--dropdown .choices__item--selectable::after {
+            color: #4b5563;
+        }
+        
+        .search-bottom select.option-select {
+            padding-right: 32px;
+        }
+        
+        @media (max-width: 1024px) {
+            .search-top,
+            .search-bottom {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .search-top,
+            .search-bottom {
+                grid-template-columns: 1fr;
+            }
+            
+            .inline-toggle {
+                width: 100%;
+                justify-content: flex-start;
+            }
+        }
+
+        .choices__item--selectable.is-highlighted {
+            background: #dae5ff;
+            color: #1f2937;
         }
         
         .result-summary {
@@ -1678,13 +1774,14 @@ search_template = '''
             .stat-chip .value {
                 color: #60a5fa;
             }
-            .search-box input,
-            .search-box select,
+            .search-top input,
+            .search-bottom select,
             .filters input[type="date"],
             .filters select,
             .filters button,
             .stat-box,
-            .post {
+            .post,
+            .inline-toggle {
                 background: #1f2330;
                 border-color: #343948;
                 color: #e5e7eb;
@@ -1724,15 +1821,30 @@ search_template = '''
                 border-color: #343948;
                 color: #e5e7eb;
             }
+            .choices__list--dropdown .choices__item--selectable.is-highlighted {
+                background: #2f3648;
+                color: #fff;
+            }
             .choices__item--selectable.is-highlighted {
-                background: #293041;
+                background: #374151;
                 color: #fff;
             }
             .choices__button {
                 color: #e5e7eb;
             }
+            .choices__list--dropdown .choices__item--selectable::after {
+                color: #a5b4fc;
+            }
             .loading {
                 color: #aaa;
+            }
+            .inline-toggle {
+                background: #1f2330;
+                border-color: #3a4150;
+                color: #d1d5db;
+            }
+            .inline-toggle input {
+                accent-color: #60a5fa;
             }
         }
     </style>
@@ -1754,12 +1866,12 @@ search_template = '''
                 </div>
             </div>
             
-            <div class="search-box">
+            <div class="search-top">
                 <input type="text" id="searchQuery" placeholder="Search posts..." value="">
-                <select id="gmFilter" multiple></select>
-                <div id="gmStatus"></div>
-                <button onclick="search()">Search</button>
-                <button type="button" onclick="clearFilters()" style="background:#4b5563;">Reset</button>
+                <input type="date" id="dateFrom">
+                <input type="date" id="dateTo">
+                <button class="btn-primary" onclick="search()">Search</button>
+                <button class="btn-secondary" onclick="clearFilters()">Reset</button>
             </div>
             
             <div class="search-help">
@@ -1774,32 +1886,31 @@ search_template = '''
                 Use quotes for exact phrases, + for AND
             </div>
             
-            <!-- Filters - responsive layout -->
-            <div class="filters">
-                <input type="date" id="dateFrom" placeholder="From date">
-                <input type="date" id="dateTo" placeholder="To date">
-                <label style="display:flex;align-items:center;gap:4px">
+            <div class="search-bottom">
+                <div class="field-stack">
+                    <select id="channelSelect" multiple></select>
+                    <div id="channelStatus" class="status-text"></div>
+                </div>
+                <div class="field-stack">
+                    <select id="gmFilter" multiple></select>
+                    <div id="gmStatus" class="status-text"></div>
+                </div>
+                <label class="inline-toggle">
                     <input type="checkbox" id="allTime" />
                     All time
                 </label>
-                <button onclick="clearFilters()">Reset filters</button>
-                <select id="sortOrder">
-                    <option value="desc" selected>Newest first</option>
-                    <option value="asc">Oldest first</option>
-                </select>
-                <select id="pageSize">
+                <select id="pageSize" class="option-select">
                     <option value="20">20/page</option>
                     <option value="50" selected>50/page</option>
                     <option value="100">100/page</option>
                 </select>
+                <select id="sortOrder" class="option-select">
+                    <option value="desc" selected>Newest first</option>
+                    <option value="asc">Oldest first</option>
+                </select>
             </div>
 
-            <!-- Channel picker - full width -->
-            <div class="channel-row">
-                <select id="channelSelect" multiple></select>
-                <div id="channelStatus"></div>
             </div>
-        </div>
         
         <div class="result-summary" id="resultSummary">Use the filters above to search the archive.</div>
         
@@ -2220,228 +2331,478 @@ search_template = '''
     </script>
 </body>
 </html>
-"""
 '''
 
-surprise_template = """
+surprise_template = '''
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Surprise Search</title>
+    <title>BlueTracker Deep Search</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
     <style>
+        * { box-sizing: border-box; }
         body {
-            font-family: sans-serif;
-            background-color: #121212;
-            color: #ddd;
-            padding: 2em;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f0f2f5;
         }
-        h1 {
-            color: #64b5f6;
+        .container { max-width: 1100px; margin: 0 auto; padding: 10px; }
+        .header {
+            background: #fff;
+            padding: 14px 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            margin-bottom: 14px;
         }
-        input[type="text"] {
-            width: 400px;
-            padding: 0.5em;
-            font-size: 1em;
-            background: #222;
-            color: #fff;
-            border: 1px solid #444;
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
         }
-        label, input[type="checkbox"] {
-            margin-left: 0.5em;
-            vertical-align: middle;
+        h1 { margin: 0; font-size: 22px; }
+        .subtitle { color: #6b7280; font-size: 14px; }
+        .search-top {
+            display: grid;
+            grid-template-columns: minmax(320px, 1fr) repeat(2, minmax(140px, 1fr)) repeat(2, max-content);
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 4px;
         }
-        button {
-            padding: 0.5em 1em;
-            margin-left: 1em;
-            background: #2196f3;
-            color: white;
+        .search-bottom {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(280px, 1fr)) repeat(3, max-content);
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .search-top input,
+        .search-bottom select {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            min-height: 40px;
+        }
+        .search-top button {
+            padding: 10px 18px;
             border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 15px;
+            min-height: 40px;
             cursor: pointer;
         }
-        table {
-            margin-top: 2em;
-            width: 100%;
-            border-collapse: collapse;
+        .btn-primary { background: #1a73e8; }
+        .btn-secondary { background: #4b5563; }
+        .search-help {
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.4;
+            margin-bottom: 6px;
         }
-        th, td {
-            padding: 0.5em;
-            border-bottom: 1px solid #333;
+        .field-stack { display: flex; flex-direction: column; }
+        .status-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .inline-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background: #fff;
+            min-height: 40px;
+            font-size: 14px;
+            color: #4b5563;
         }
-        th {
-            background-color: #1e1e1e;
-            color: #ccc;
+        .inline-toggle input { width: 16px; height: 16px; }
+        .option-select { min-width: 130px; }
+        .results {
+            background: #fff;
+            border-radius: 8px;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
         }
-        .timestamp {
-            color: #aaa;
-            font-size: 0.9em;
+        .result-summary {
+            font-size: 14px;
+            color: #4b5563;
+            margin-bottom: 10px;
         }
-        pre {
-            white-space: pre-wrap;
-            word-break: break-word;
+        .post {
+            border-bottom: 1px solid #e5e7eb;
+            padding: 14px 16px;
+        }
+        .post:last-child { border-bottom: none; }
+        .post-header {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            font-size: 14px;
+            color: #4b5563;
+            margin-bottom: 6px;
+        }
+        .post-content { font-size: 15px; line-height: 1.45; white-space: pre-wrap; }
+        .post-channel { font-weight: 600; color: #1f2937; }
+        .post-author { font-weight: 600; }
+        .post-time { color: #6b7280; }
+        .post-link { margin-top: 6px; font-size: 12px; color: #6b7280; }
+        .loading { padding: 20px; text-align: center; color: #6b7280; }
+        .error { padding: 12px; color: #b91c1c; }
+        .pagination {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+        .pagination button {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid #cbd5f5;
+            background: #fff;
+            cursor: pointer;
+        }
+        .pagination button.current {
+            background: #1a73e8;
+            border-color: #1a73e8;
+            color: #fff;
+        }
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .choices__inner {
+            padding: 8px 40px 8px 12px;
+            min-height: 44px;
+            border-radius: 6px;
+        }
+        .choices__list--dropdown,
+        .choices__list {
+            background: #fff;
+            border: 1px solid #ddd;
+            color: #111;
+        }
+        .choices__list--dropdown .choices__item--selectable.is-highlighted,
+        .choices__item--selectable.is-highlighted {
+            background: #e0e7ff;
+            color: #111;
+        }
+        @media (max-width: 1024px) {
+            .search-top,
+            .search-bottom { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 640px) {
+            .search-top,
+            .search-bottom { grid-template-columns: 1fr; }
+            .inline-toggle { width: 100%; }
+        }
+        @media (prefers-color-scheme: dark) {
+            body { background: #0f1116; color: #e5e7eb; }
+            .header,
+            .results { background: #181b22; box-shadow: none; }
+            .search-top input,
+            .search-bottom select,
+            .inline-toggle,
+            .search-top button {
+                background: #1f2330;
+                border-color: #343948;
+                color: #e5e7eb;
+            }
+            .btn-primary { background: #2563eb; }
+            .btn-secondary { background: #4b5563; }
+            .post { border-bottom-color: #2a3040; }
+            .post-channel,
+            .post-time,
+            .post-link,
+            .subtitle,
+            .result-summary { color: #9ca3af; }
+            .choices__inner,
+            .choices__list--dropdown,
+            .choices__list { background: #1f2330; border-color: #343948; color: #e5e7eb; }
+            .choices__list--dropdown .choices__item--selectable.is-highlighted,
+            .choices__item--selectable.is-highlighted { background: #2f3648; color: #fff; }
         }
     </style>
 </head>
 <body>
-    <h1>🔍 Surprise Search</h1>
-    <form id="searchForm">
-        <input type="text" id="query" placeholder="Search all posts…">
-        <label><input type="checkbox" id="deletedOnly"> Deleted only</label>
-        <br><br>
-        <label>From: <input type="date" id="dateFrom"></label>
-        <label>To: <input type="date" id="dateTo"></label>
-        <label><input type="checkbox" id="allTime"> All time</label>
-        <br><br>
-        <label>Channels:</label>
-        <select id="channels" multiple size="8" style="min-width:260px;background:#222;color:#fff;border:1px solid #444;"></select>
-        <br><br>
-        <label>Members:</label>
-        <select id="members" multiple size="10" style="min-width:260px;background:#222;color:#fff;border:1px solid #444;"></select>
-        <br><br>
-        <label>Per page:</label>
-        <select id="pageSize">
-            <option value="25">25</option>
-            <option value="50" selected>50</option>
-            <option value="100">100</option>
-        </select>
-        <button type="submit">Search</button>
-    </form>
+    <div class="container">
+        <div class="header">
+            <div class="header-top">
+                <h1>Deleted & Surprise Search</h1>
+                <div class="subtitle">Inspect deleted, edited, or legacy posts with full-text search.</div>
+            </div>
+            <div class="search-top">
+                <input type="text" id="query" placeholder="Search deleted content...">
+                <input type="date" id="dateFrom">
+                <input type="date" id="dateTo">
+                <button class="btn-primary" onclick="doSearch(1)">Search</button>
+                <button class="btn-secondary" onclick="resetForm()">Reset</button>
+            </div>
+            <div class="search-help">
+                Search syntax: word (any) | "exact phrase" | word + word (both) | /regex/i | combine multiple patterns.
+            </div>
+            <div class="search-bottom">
+                <div class="field-stack">
+                    <select id="channels" multiple></select>
+                    <div id="surpriseChannelStatus" class="status-text"></div>
+                </div>
+                <div class="field-stack">
+                    <select id="members" multiple></select>
+                    <div id="surpriseMemberStatus" class="status-text"></div>
+                </div>
+                <label class="inline-toggle">
+                    <input type="checkbox" id="deletedOnly" checked>
+                    Deleted only
+                </label>
+                <label class="inline-toggle">
+                    <input type="checkbox" id="surpriseAllTime">
+                    All time
+                </label>
+                <select id="pageSize" class="option-select">
+                    <option value="25">25/page</option>
+                    <option value="50" selected>50/page</option>
+                    <option value="100">100/page</option>
+                </select>
+            </div>
+        </div>
+        <div class="result-summary" id="surpriseSummary">Use the filters above to search deleted or hidden posts.</div>
+        <div class="results" id="results">
+            <div class="loading">Waiting for your first query…</div>
+        </div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+<script>
+let channelChoices;
+let memberChoices;
+let currentPage = 1;
+let totalPages = 1;
 
-    <table id="results" style="display: none;">
-        <thead>
-            <tr>
-                <th>Author</th>
-                <th>Channel</th>
-                <th>Timestamp</th>
-                <th>Content</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-    <div id="pagination" style="margin-top:1em; display:none;"></div>
+const resultsDiv = document.getElementById("results");
+const summaryEl = document.getElementById("surpriseSummary");
+const paginationEl = document.getElementById("pagination");
 
-    <script>
-        const form    = document.getElementById("searchForm");
-        const results = document.getElementById("results").getElementsByTagName("tbody")[0];
-        const table   = document.getElementById("results");
-        const pagerDiv   = document.getElementById("pagination");
-        let   currentPage= 1;
+function escapeHtml(text) {
+    const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+    };
+    return text ? text.replace(/[&<>"']/g, m => map[m]) : "";
+}
 
-        async function loadChannels() {
-            try {
-                const res  = await fetch('/api/all_channels');
-                const data = await res.json();
-                const sel  = document.getElementById('channels');
-                Object.entries(data).forEach(([group, chans]) => {
-                    const og = document.createElement('optgroup');
-                    og.label = group;
-                    chans.forEach(ch => {
-                        const opt = document.createElement('option');
-                        opt.value = ch.id;
-                        opt.text  = ch.name;
-                        og.appendChild(opt);
-                    });
-                    sel.appendChild(og);
-                });
-            } catch(e) {
-                console.error('channel load failed', e);
-            }
-        }
+function formatDate(ts) {
+    if (!ts) return "Unknown time";
+    return new Date(ts).toLocaleString();
+}
 
-        async function loadMembers() {
-            try {
-                const res  = await fetch('/api/members');
-                const data = await res.json();
-                const sel  = document.getElementById('members');
-                data.forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m.id;
-                    opt.text  = m.name;
-                    sel.appendChild(opt);
-                });
-            } catch(e) {
-                console.error('member load failed', e);
-            }
-        }
+function selectedValues(choiceInstance, fallbackSelect) {
+    if (choiceInstance) {
+        return choiceInstance.getValue(true);
+    }
+    return Array.from(fallbackSelect.selectedOptions).map(o => o.value);
+}
 
-        async function doSearch(page = 1) {
-            currentPage = page;
-            const q        = document.getElementById("query").value;
-            const deleted  = document.getElementById("deletedOnly").checked;
-            const from     = document.getElementById("dateFrom").value;
-            const to       = document.getElementById("dateTo").value;
-            const allTime  = document.getElementById("allTime").checked;
-            const channels = Array.from(document.getElementById("channels").selectedOptions).map(o => o.value).join(',');
-            const members  = Array.from(document.getElementById("members").selectedOptions).map(o => o.value).join(',');
-            const perPage  = document.getElementById("pageSize").value;
+function buildParams(page) {
+    const params = new URLSearchParams({
+        q: document.getElementById("query").value.trim(),
+        date_from: document.getElementById("dateFrom").value,
+        date_to: document.getElementById("dateTo").value,
+        deleted: document.getElementById("deletedOnly").checked ? 1 : 0,
+        all_time: document.getElementById("surpriseAllTime").checked ? 1 : 0,
+        channels: selectedValues(channelChoices, document.getElementById("channels")).join(","),
+        members: selectedValues(memberChoices, document.getElementById("members")).join(","),
+        per_page: document.getElementById("pageSize").value,
+        page
+    });
+    return params;
+}
 
-            results.innerHTML = "";
-            table.style.display = "none";
-            pagerDiv.style.display = "none";
+function resetForm() {
+    document.getElementById("query").value = "";
+    document.getElementById("dateFrom").value = "";
+    document.getElementById("dateTo").value = "";
+    document.getElementById("deletedOnly").checked = true;
+    document.getElementById("surpriseAllTime").checked = false;
+    document.getElementById("pageSize").value = "50";
+    if (channelChoices) channelChoices.removeActiveItems();
+    if (memberChoices) memberChoices.removeActiveItems();
+    doSearch(1);
+}
 
-            const params = new URLSearchParams({
-                q,
-                deleted: deleted ? 1 : 0,
-                date_from: from,
-                date_to: to,
-                all_time: allTime ? 1 : 0,
-                channels,
-                members,
-                page: page,
-                per_page: perPage
-            });
+function setStatus(id, message, success=false) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = message;
+    el.style.color = success ? "#16a34a" : "#6b7280";
+    if (success) {
+        setTimeout(() => { el.textContent = ""; }, 2000);
+    }
+}
 
-            const res  = await fetch(`/api/surprise_search?${params.toString()}`);
-            const data = await res.json();
-
-            if (!data.results || data.results.length === 0) {
-                results.innerHTML = "<tr><td colspan='4'><i>No results found</i></td></tr>";
-            } else {
-                for (const post of data.results) {
-                    const tr = document.createElement("tr");
-                    tr.innerHTML = `
-                        <td>${post.author}</td>
-                        <td>${post.channel}</td>
-                        <td class="timestamp">${new Date(post.timestamp).toLocaleString()}</td>
-                        <td><pre>${post.content || "<i>(no content)</i>"}</pre></td>
-                    `;
-                    results.appendChild(tr);
-                }
-                table.style.display = "table";
-            }
-
-            renderPagination(data.total_pages || 1, data.page || 1);
-        }
-
-        function renderPagination(totalPages, current) {
-            if (totalPages <= 1) { pagerDiv.style.display = 'none'; return; }
-            let html = '';
-            html += `<button ${current===1?'disabled':''} onclick="doSearch(${current-1})">Prev</button>`;
-            const maxButtons = 10;
-            const start = Math.max(1, current - 4);
-            const end   = Math.min(totalPages, start + maxButtons - 1);
-            for (let i = start; i <= end; i++) {
-                if (i === current) html += `<button class="current">${i}</button>`;
-                else html += `<button onclick="doSearch(${i})">${i}</button>`;
-            }
-            if (end < totalPages) {
-                html += `<span>…</span><button onclick="doSearch(${totalPages})">${totalPages}</button>`;
-            }
-            html += `<button ${current===totalPages?'disabled':''} onclick="doSearch(${current+1})">Next</button>`;
-            pagerDiv.innerHTML = html;
-            pagerDiv.style.display = 'block';
-        }
-
-        form.addEventListener("submit", e => {
-            e.preventDefault();
-            doSearch(1);
+async function loadChannels() {
+    setStatus("surpriseChannelStatus", "Loading channels…");
+    try {
+        const res = await fetch("/api/all_channels");
+        const data = await res.json();
+        const select = document.getElementById("channels");
+        select.innerHTML = "";
+        const grouped = Object.entries(data).map(([group, chans]) => ({
+            label: group,
+            id: group,
+            disabled: false,
+            choices: chans.map(ch => ({ value: ch.id, label: ch.name }))
+        }));
+        channelChoices = new Choices(select, {
+            removeItemButton: true,
+            shouldSort: false,
+            placeholder: true,
+            placeholderValue: "Select channels…",
+            searchResultLimit: 20
         });
+        channelChoices.setChoices(grouped, "value", "label", true);
+        setStatus("surpriseChannelStatus", "Channels ready", true);
+    } catch (err) {
+        console.error("Channel load failed", err);
+        setStatus("surpriseChannelStatus", "Failed to load channels");
+    }
+}
 
-        // initial load
-        loadChannels();
-        loadMembers();
+async function loadMembers() {
+    setStatus("surpriseMemberStatus", "Loading members…");
+    try {
+        const res = await fetch("/api/members");
+        const data = await res.json();
+        const select = document.getElementById("members");
+        select.innerHTML = "";
+        memberChoices = new Choices(select, {
+            removeItemButton: true,
+            shouldSort: false,
+            placeholder: true,
+            placeholderValue: "Select GM(s)…",
+            searchResultLimit: 30
+        });
+        memberChoices.setChoices(
+            data.map(m => ({ value: m.id, label: m.name })),
+            "value",
+            "label",
+            true
+        );
+        setStatus("surpriseMemberStatus", "Members ready", true);
+    } catch (err) {
+        console.error("Member load failed", err);
+        setStatus("surpriseMemberStatus", "Failed to load members");
+    }
+}
+
+function renderPagination() {
+    if (totalPages <= 1) {
+        paginationEl.innerHTML = "";
+        return;
+    }
+    const buttons = [];
+    buttons.push(`<button onclick="doSearch(${currentPage - 1})" ${currentPage === 1 ? "disabled" : ""}>Previous</button>`);
+    const windowSize = Math.min(totalPages, 10);
+    let start = Math.max(1, currentPage - Math.floor(windowSize / 2));
+    let end = Math.min(totalPages, start + windowSize - 1);
+    if (end - start < windowSize - 1) {
+        start = Math.max(1, end - windowSize + 1);
+    }
+    for (let i = start; i <= end; i++) {
+        if (i === currentPage) {
+            buttons.push(`<button class="current">${i}</button>`);
+        } else {
+            buttons.push(`<button onclick="doSearch(${i})">${i}</button>`);
+        }
+    }
+    buttons.push(`<button onclick="doSearch(${currentPage + 1})" ${currentPage === totalPages ? "disabled" : ""}>Next</button>`);
+    paginationEl.innerHTML = buttons.join("");
+}
+
+async function doSearch(page = 1) {
+    currentPage = page;
+    const params = buildParams(page);
+    summaryEl.textContent = "Searching…";
+    resultsDiv.innerHTML = '<div class="loading">Searching…</div>';
+    paginationEl.innerHTML = "";
+    try {
+        const response = await fetch("/api/surprise_search?" + params.toString());
+        const data = await response.json();
+        totalPages = data.total_pages || 1;
+        if (!data.results || data.results.length === 0) {
+            resultsDiv.innerHTML = '<div class="loading">No results found</div>';
+            summaryEl.textContent = "No results found.";
+            return;
+        }
+        const total = data.total || 0;
+        const start = ((data.page - 1) * data.per_page) + 1;
+        const end = start + data.results.length - 1;
+        summaryEl.textContent = `${total.toLocaleString()} results • Showing ${start}-${end} • Page ${data.page} of ${Math.max(1, data.total_pages || 1)} • ${document.getElementById("deletedOnly").checked ? "Deleted only" : "All posts"}`;
+        resultsDiv.innerHTML = data.results.map(post => `
+            <div class="post">
+                <div class="post-header">
+                    <span class="post-author">${escapeHtml(post.author || "Unknown")}</span>
+                    <span>•</span>
+                    <span class="post-channel">#${escapeHtml(post.channel || "unknown")}</span>
+                    <span class="post-time">${formatDate(post.timestamp)}</span>
+                </div>
+                <div class="post-content">${escapeHtml(post.content || "(no content)")}</div>
+                <div class="post-link">ID: ${post.id}</div>
+            </div>
+        `).join("");
+        renderPagination();
+    } catch (err) {
+        console.error("Surprise search failed", err);
+        resultsDiv.innerHTML = `<div class="error">Search failed: ${escapeHtml(err.message)}</div>`;
+        summaryEl.textContent = "Search failed.";
+    }
+}
+
+document.getElementById("pageSize").addEventListener("change", () => doSearch(1));
+document.getElementById("deletedOnly").addEventListener("change", () => doSearch(1));
+document.getElementById("surpriseAllTime").addEventListener("change", () => doSearch(1));
+document.getElementById("query").addEventListener("keypress", e => {
+    if (e.key === "Enter") {
+        e.preventDefault();
         doSearch(1);
-    </script>
+    }
+});
+
+loadChannels();
+loadMembers();
+doSearch(1);
+</script>
 </body>
 </html>
-"""
+'''
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="BlueTracker Viewer")
+    parser.add_argument("--host", default="0.0.0.0", help="Host to bind")
+    parser.add_argument("--port", default=5000, type=int, help="Port to bind")
+    parser.add_argument("--db", help="Override DATABASE_URL")
+    parser.add_argument("--reload", action="store_true", help="Enable Flask reloader (dev only)")
+    parser.add_argument("--debug", action="store_true", help="Enable Werkzeug debugger")
+    args = parser.parse_args()
+
+    if args.db:
+        app.config['DATABASE_URL'] = args.db
+
+    print(f"Starting viewer on http://{args.host}:{args.port}")
+    print(f"Database: {app.config['DATABASE_URL']}")
+
+    run_simple(
+        args.host,
+        args.port,
+        app,
+        use_reloader=args.reload,
+        use_debugger=args.debug,
+    )
