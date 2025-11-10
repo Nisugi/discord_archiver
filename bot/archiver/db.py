@@ -336,6 +336,8 @@ async def save_message(db, msg):
         async with conn.transaction():
             parent_id = str(msg.channel.parent_id) if getattr(msg.channel, "parent_id", None) else None
             channel_type = getattr(msg.channel, "type", None)
+            # Extract enum name if it's a ChannelType enum, otherwise keep as None
+            channel_type_str = channel_type.name if channel_type and hasattr(channel_type, 'name') else None
             channel_topic = getattr(msg.channel, "topic", None)
             created_ts = int(msg.created_at.timestamp() * 1000)
             guild = getattr(msg.channel, "guild", None)
@@ -357,7 +359,7 @@ async def save_message(db, msg):
                 guild_id,
                 parent_id,
                 msg.channel.name,
-                str(channel_type),
+                channel_type_str,
                 channel_topic,
                 True,
                 str(msg.id),
