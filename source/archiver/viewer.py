@@ -2163,38 +2163,38 @@ search_template = '''
                     shouldSort: false
                 });
 
-                // Hide "Other Channels" group initially, show on search
-                const hideOtherChannels = () => {
-                    const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
-                    if (dropdown) {
-                        const otherGroup = Array.from(dropdown.querySelectorAll('.choices__group')).find(g =>
-                            g.textContent.includes('Other Channels')
-                        );
-                        if (otherGroup) otherGroup.style.display = 'none';
-                    }
-                };
+                // Track if user is searching
+                let isSearching = false;
 
-                const showAllChannels = () => {
-                    const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
-                    if (dropdown) {
-                        dropdown.querySelectorAll('.choices__group').forEach(g => g.style.display = '');
+                // Hide "Other Channels" group when dropdown opens (if not searching)
+                select.addEventListener('showDropdown', () => {
+                    if (!isSearching) {
+                        setTimeout(() => {
+                            const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
+                            if (dropdown) {
+                                dropdown.querySelectorAll('.choices__group').forEach(group => {
+                                    if (group.querySelector('.choices__heading')?.textContent.includes('Other Channels')) {
+                                        group.style.display = 'none';
+                                    }
+                                });
+                            }
+                        }, 10);
                     }
-                };
+                });
 
                 // Listen for search input
                 const searchInput = select.parentElement.querySelector('.choices__input');
                 if (searchInput) {
                     searchInput.addEventListener('input', (e) => {
-                        if (e.target.value) {
-                            showAllChannels();
-                        } else {
-                            hideOtherChannels();
+                        isSearching = e.target.value.length > 0;
+                        const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
+                        if (dropdown) {
+                            dropdown.querySelectorAll('.choices__group').forEach(g => {
+                                g.style.display = isSearching ? '' : (g.querySelector('.choices__heading')?.textContent.includes('Other Channels') ? 'none' : '');
+                            });
                         }
                     });
                 }
-
-                // Hide initially after a short delay (let Choices.js render first)
-                setTimeout(hideOtherChannels, 100);
 
                 showReadyStatus('channelStatus', `${totalChannels} channels loaded`);
             } catch (error) {
@@ -2957,38 +2957,38 @@ async function loadChannels() {
         });
         channelChoices.setChoices(grouped, "value", "label", true);
 
-        // Hide "Other Channels" group initially, show on search
-        const hideOtherChannels = () => {
-            const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
-            if (dropdown) {
-                const otherGroup = Array.from(dropdown.querySelectorAll('.choices__group')).find(g =>
-                    g.textContent.includes('Other Channels')
-                );
-                if (otherGroup) otherGroup.style.display = 'none';
-            }
-        };
+        // Track if user is searching
+        let isSearching = false;
 
-        const showAllChannels = () => {
-            const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
-            if (dropdown) {
-                dropdown.querySelectorAll('.choices__group').forEach(g => g.style.display = '');
+        // Hide "Other Channels" group when dropdown opens (if not searching)
+        select.addEventListener('showDropdown', () => {
+            if (!isSearching) {
+                setTimeout(() => {
+                    const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
+                    if (dropdown) {
+                        dropdown.querySelectorAll('.choices__group').forEach(group => {
+                            if (group.querySelector('.choices__heading')?.textContent.includes('Other Channels')) {
+                                group.style.display = 'none';
+                            }
+                        });
+                    }
+                }, 10);
             }
-        };
+        });
 
         // Listen for search input
         const searchInput = select.parentElement.querySelector('.choices__input');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
-                if (e.target.value) {
-                    showAllChannels();
-                } else {
-                    hideOtherChannels();
+                isSearching = e.target.value.length > 0;
+                const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
+                if (dropdown) {
+                    dropdown.querySelectorAll('.choices__group').forEach(g => {
+                        g.style.display = isSearching ? '' : (g.querySelector('.choices__heading')?.textContent.includes('Other Channels') ? 'none' : '');
+                    });
                 }
             });
         }
-
-        // Hide initially after a short delay (let Choices.js render first)
-        setTimeout(hideOtherChannels, 100);
 
         setStatus("surpriseChannelStatus", "Channels ready", true);
     } catch (err) {
