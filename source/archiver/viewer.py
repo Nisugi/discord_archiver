@@ -360,8 +360,8 @@ def get_channels():
             ignored_clause = f"AND c.chan_id NOT IN ({placeholders})"
             ignored_params = [str(ch_id) for ch_id in PRIVATE_CHANNELS]
 
-        # Optimized query - Use IN subquery with DISTINCT for better performance
-        # This builds a hash set of channel IDs once, then filters channels
+        # Super fast query using denormalized has_gm_posts column
+        # This column is maintained automatically when GM posts are saved
         rows = db.execute(f"""
             SELECT
                 c.chan_id,
@@ -370,7 +370,7 @@ def get_channels():
             FROM channels c
             LEFT JOIN channels p ON c.parent_id = p.chan_id
             WHERE c.accessible IS TRUE
-              AND c.chan_id IN (SELECT DISTINCT chan_id FROM gm_posts_view)
+              AND c.has_gm_posts IS TRUE
             {ignored_clause}
             ORDER BY parent_name, c.name
             LIMIT 500
@@ -413,8 +413,8 @@ def get_all_channels():
         ignored_clause = ""
         ignored_params = []
 
-        # Optimized query - Use IN subquery with DISTINCT for better performance
-        # This builds a hash set of channel IDs once, then filters channels
+        # Super fast query using denormalized has_gm_posts column
+        # This column is maintained automatically when GM posts are saved
         rows = db.execute(f"""
             SELECT
                 c.chan_id,
@@ -423,7 +423,7 @@ def get_all_channels():
             FROM channels c
             LEFT JOIN channels p ON c.parent_id = p.chan_id
             WHERE c.accessible IS TRUE
-              AND c.chan_id IN (SELECT DISTINCT chan_id FROM gm_posts_view)
+              AND c.has_gm_posts IS TRUE
             {ignored_clause}
             ORDER BY parent_name, c.name
             LIMIT 500

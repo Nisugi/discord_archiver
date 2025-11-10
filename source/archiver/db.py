@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS channels(
     topic           TEXT,
     accessible      BOOLEAN,
     last_message_id TEXT,
-    created_ts      BIGINT
+    created_ts      BIGINT,
+    has_gm_posts    BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS posts(
@@ -121,13 +122,14 @@ WHERE COALESCE((m.is_gm)::text, '0') IN ('1','t','true')
   AND NOT (COALESCE((p.deleted)::text, '0') IN ('1','t','true'));
 
 -- Performance indexes
-CREATE INDEX IF NOT EXISTS idx_posts_ts        ON posts (created_ts DESC);
-CREATE INDEX IF NOT EXISTS idx_posts_chan_ts   ON posts (chan_id, created_ts DESC);
-CREATE INDEX IF NOT EXISTS idx_posts_author_ts ON posts (author_id, created_ts DESC);
-CREATE INDEX IF NOT EXISTS idx_posts_reply     ON posts (reply_to_id) WHERE reply_to_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_posts_tsv       ON posts USING gin (content_tsv);
-CREATE INDEX IF NOT EXISTS idx_members_is_gm   ON members (is_gm);
-CREATE INDEX IF NOT EXISTS idx_channels_parent ON channels (parent_id);
+CREATE INDEX IF NOT EXISTS idx_posts_ts             ON posts (created_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_chan_ts        ON posts (chan_id, created_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_author_ts      ON posts (author_id, created_ts DESC);
+CREATE INDEX IF NOT EXISTS idx_posts_reply          ON posts (reply_to_id) WHERE reply_to_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_posts_tsv            ON posts USING gin (content_tsv);
+CREATE INDEX IF NOT EXISTS idx_members_is_gm        ON members (is_gm);
+CREATE INDEX IF NOT EXISTS idx_channels_parent      ON channels (parent_id);
+CREATE INDEX IF NOT EXISTS idx_channels_has_gm_posts ON channels (has_gm_posts) WHERE has_gm_posts = TRUE;
 """
 
 

@@ -25,19 +25,19 @@ if DATABASE_URL.startswith("postgresql"):
         with psycopg.connect(DATABASE_URL) as conn:
             with conn.cursor() as cur:
                 # Check current name
-                cur.execute("SELECT gm_name FROM gm_names WHERE author_id = %s", ("381845577987653632",))
+                cur.execute("SELECT gm_name FROM gm_names WHERE author_id = %s", ("426755949701890050",))
                 row = cur.fetchone()
 
                 if row:
                     print(f"Current name in gm_names table: {row[0]}")
 
-                    if row[0] == "Satsona":
+                    if row[0] == "Quillic":
                         print("Updating to Sotsona...")
                         cur.execute("UPDATE gm_names SET gm_name = %s WHERE author_id = %s",
-                                  ("Sotsona", "381845577987653632"))
+                                  ("Quilic", "426755949701890050"))
                         conn.commit()
                         print("✅ Successfully updated name to Sotsona")
-                    elif row[0] == "Sotsona":
+                    elif row[0] == "Quilic":
                         print("✅ Name is already correct (Sotsona)")
                     else:
                         print(f"⚠️ Unexpected name: {row[0]}")
