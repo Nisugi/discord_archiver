@@ -117,6 +117,10 @@ message_queue = queue.Queue()
 app = Flask(__name__)
 app.config['DATABASE_URL'] = DATABASE_URL
 
+# Initialize performance monitoring
+from .middleware import PerformanceMonitor
+PerformanceMonitor(app, slow_threshold=2.0)
+
 TRUTHY_SQL = "COALESCE({}::text, '0') IN ('1','t','true')"
 
 
@@ -130,6 +134,10 @@ def _falsy(column: str) -> str:
 def _create_connection():
     conn = psycopg.connect(app.config['DATABASE_URL'], row_factory=dict_row)
     conn.autocommit = True
+    # Set statement timeout to 25 seconds to prevent runaway queries
+    # This is less than the frontend timeout (30s) to ensure proper error handling
+    with conn.cursor() as cur:
+        cur.execute("SET statement_timeout = '25s'")
     return PostgresConnectionAdapter(conn)
 
 endpoint_cache = {
@@ -741,36 +749,44 @@ def search():
             
             results.append(result)
 
-        # OPTIMIZED count query
+        # OPTIMIZED count query with timeout protection
         count_start = time.time()
-        
-        if query:
-            count_sql = f"""
-                WITH search_query AS (
-                    SELECT websearch_to_tsquery('english', ?) AS query
-                )
-                SELECT COUNT(*)
-                FROM gm_posts_view p
-                CROSS JOIN search_query sq
-                WHERE {where_clause}
-                  AND p.content_tsv @@ sq.query
-            """
-            count_params = [query] + params
 
+        # For broad searches, use estimated count to avoid slow full table scans
+        if is_broad_search and not query:
+            # Estimate: Use stats or just say "many results"
+            # This avoids the expensive COUNT(*) on large date ranges
+            total_count = 10000  # Estimated, will show "Page 1 of 200" etc
+            total_pages = 200  # Reasonable estimate for pagination
+            print(f"[PERF] Using estimated count for broad search (skipped COUNT query)")
         else:
-            # Regular count
-            count_sql = f"""
-                SELECT COUNT(*)
-                FROM gm_posts_view p
-                WHERE {where_clause}
-            """
-            count_params = params
-        
-        total_count = db.execute(count_sql, count_params).fetchone()[0]
-        total_pages = (total_count + per_page - 1) // per_page
-        
-        count_time = time.time() - count_start
-        print(f"[PERF] Count query took {count_time:.2f}s")
+            if query:
+                count_sql = f"""
+                    WITH search_query AS (
+                        SELECT websearch_to_tsquery('english', ?) AS query
+                    )
+                    SELECT COUNT(*)
+                    FROM gm_posts_view p
+                    CROSS JOIN search_query sq
+                    WHERE {where_clause}
+                      AND p.content_tsv @@ sq.query
+                """
+                count_params = [query] + params
+
+            else:
+                # Regular count
+                count_sql = f"""
+                    SELECT COUNT(*)
+                    FROM gm_posts_view p
+                    WHERE {where_clause}
+                """
+                count_params = params
+
+            total_count = db.execute(count_sql, count_params).fetchone()[0]
+            total_pages = (total_count + per_page - 1) // per_page
+
+            count_time = time.time() - count_start
+            print(f"[PERF] Count query took {count_time:.2f}s")
 
         total_time = time.time() - start_time
         print(f"[PERF] Total request time: {total_time:.2f}s")
@@ -832,11 +848,11 @@ def get_stats():
         
         cached_stats = {row['key']: row['value'] for row in cursor}
         
-        # Check if cached stats are recent (within 1 hour)
+        # Check if cached stats are recent (within 5 minutes)
         last_updated = int(cached_stats.get('stats_last_updated', '0'))
         current_time = int(time.time() * 1000)
-        
-        if last_updated > 0 and (current_time - last_updated) < 3600000:  # 1 hour
+
+        if last_updated > 0 and (current_time - last_updated) < 300000:  # 5 minutes
             # Use cached values
             stats['total_posts'] = int(cached_stats.get('stats_total_posts', '0'))
             stats['total_gms'] = int(cached_stats.get('stats_total_gms', '0'))
@@ -870,14 +886,17 @@ def get_stats():
                     temp_db.execute(upsert_sql, ('stats_last_updated', str(current_time), current_time))
                     temp_db.commit()
                     temp_db.close()
-                    
+
                     # Clear the endpoint cache so next request gets fresh data
                     with endpoint_cache['lock']:
                         endpoint_cache['stats'] = None
-                        
+
                     print(f"[Viewer] Stats updated in background: {total_posts:,} posts, {total_gms} GMs")
                 except Exception as e:
                     print(f"[Viewer] Background stats update failed: {e}")
+                finally:
+                    # CRITICAL: Reset the flag so future updates can run
+                    app._stats_updating = False
             
             # Only update if not already updating
             if not hasattr(app, '_stats_updating') or not app._stats_updating:
@@ -2176,9 +2195,17 @@ search_template = '''
         const summaryEl = document.getElementById('resultSummary');
         summaryEl.textContent = 'Searching...';
         resultsDiv.innerHTML = '<div class="loading">Searching...</div>';
-            
+
             try {
-                const response = await fetch('/api/search?' + params);
+                // Add 30 second timeout to prevent hanging
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+                const response = await fetch('/api/search?' + params, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
                 const data = await response.json();
                 
                 totalPages = data.total_pages || 1;
@@ -2227,7 +2254,13 @@ search_template = '''
                 
             } catch (error) {
                 console.error('Search failed', error);
-                resultsDiv.innerHTML = '<div class="error">Search failed: ' + error.message + '</div>';
+                let errorMsg = error.message;
+                if (error.name === 'AbortError') {
+                    errorMsg = 'Search timed out after 30 seconds. The database may be busy. Try again in a moment.';
+                } else if (error.message === 'Failed to fetch') {
+                    errorMsg = 'Could not reach the server. The service may be temporarily down.';
+                }
+                resultsDiv.innerHTML = '<div class="error">Search failed: ' + errorMsg + '</div>';
                 document.getElementById('resultSummary').textContent = 'Search failed.';
             }
         }
