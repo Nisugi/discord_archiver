@@ -572,7 +572,7 @@ def search():
         else:
             auto_date_limit = None
 
-        if is_broad_search:
+        if is_broad_search and not all_time:
             print(f"[info] Showing posts from last 3 months only…")
 
 
@@ -752,8 +752,8 @@ def search():
         # OPTIMIZED count query with timeout protection
         count_start = time.time()
 
-        # For broad searches, use estimated count to avoid slow full table scans
-        if is_broad_search and not query:
+        # For broad searches (without all_time), use estimated count to avoid slow full table scans
+        if is_broad_search and not all_time and not query:
             # Estimate: Use stats or just say "many results"
             # This avoids the expensive COUNT(*) on large date ranges
             total_count = 10000  # Estimated, will show "Page 1 of 200" etc
