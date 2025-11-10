@@ -184,6 +184,32 @@ SEED_BLUE_IDS = {
     306995432981266433,  # Modrian
     401257353866903553,  # Kenstrom
     869737767972773928,  # Hivala
+    168526412561514496,  # Sleken
+    226067036768305153,  # Haliste
+    238006234077200385,  # Kaikala
+    238436170999005184,  # Skhorne
+    278554111232704514,  # Mazreth
+    282728416556613643,  # Necios
+    287013494308601857,  # Kynlee
+    287043282939412482,  # Zoelle
+    306983375103590401,  # Palvella
+    307164703652708352,  # Contemplar
+    307170903563698176,  # Kveta
+    307218082798108672,  # Galene
+    308769643890475010,  # Viduus
+    309134402732949506,  # Cyraex
+    309864637334028288,  # Aulis
+    321708823490592778,  # Jainna
+    381845577987653632,  # Sotsona
+    423659565167411204,  # Annanasi
+    452264876006703115,  # Wraex
+    454105842971836427,  # Netz
+    454442580789428224,  # Lanadriel
+    475856821085667329,  # Ubiq
+    728119544752635987,  # Khorbin
+    905666478546780160,  # Reidyn
+    912540641521709138,  # Wylloh
+    928613234263605298,  # Naijin 2.0
 }
 
 GM_NAME_OVERRIDES = {
@@ -276,12 +302,20 @@ ARCHIVE_MODE = False            # No longer needed after initial setup
 CUTOFF_DAYS = CRAWL_BACKFILL_DAYS  # Alias for compatibility
 
 
-
-
-# Mikos      can't find on discord
-# Nebhrail  can't find on discord
-# Rhameis   can't find on discord
-# Serannyse can't find on discord
+# Unable to find discord user for:
+# Donagn
+# Zythica
+# Liia
+# Wakefield
+# Finros
+# Keios
+# Draxun
+# Mikos
+# Nebhrail
+# Rhameis
+# Serannyse
 # Oscuro    found but deleted
 # Deleted User — 5/2/2020 9:34 AM
 # This was a premature deployment of the NoAmbientMsg flag.  Please do not test it yet.  You can safely wait for an announcement when details will be given.
+#
+# Discord assigns deleted users the same user id, so no way to distinguish posts between deleted users.
