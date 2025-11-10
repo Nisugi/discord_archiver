@@ -376,7 +376,7 @@ def get_channels():
             LEFT JOIN channels p ON c.parent_id = p.chan_id
             WHERE c.accessible IS TRUE
               AND (c.has_gm_posts IS TRUE OR c.chan_id IN ({featured_placeholders}))
-              AND c.type != 'public_thread'
+              AND COALESCE(c.type, '') != 'public_thread'
             {ignored_clause}
             ORDER BY parent_name, c.name
         """, featured_ids + ignored_params)
@@ -454,7 +454,7 @@ def get_all_channels():
             LEFT JOIN channels p ON c.parent_id = p.chan_id
             WHERE c.accessible IS TRUE
               AND (c.has_gm_posts IS TRUE OR c.chan_id IN ({featured_placeholders}))
-              AND c.type != 'public_thread'
+              AND COALESCE(c.type, '') != 'public_thread'
             {ignored_clause}
             ORDER BY parent_name, c.name
         """, featured_ids + ignored_params)
