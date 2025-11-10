@@ -120,24 +120,11 @@ JOIN members m ON m.member_id = p.author_id
 WHERE COALESCE((m.is_gm)::text, '0') IN ('1','t','true')
   AND NOT (COALESCE((p.deleted)::text, '0') IN ('1','t','true'));
 
--- Materialized view for the default 90-day view (optimizes "Reset" button clicks)
--- This caches the most common query to avoid expensive COUNT(*) operations
--- Refresh this view every 10 minutes via bot or periodic task
--- Note: PostgreSQL doesn't support IF NOT EXISTS for materialized views, so this will error on reruns
--- Run manually if needed: DROP MATERIALIZED VIEW IF EXISTS gm_posts_90day;
-CREATE MATERIALIZED VIEW gm_posts_90day AS
-SELECT p.*
-FROM posts p
-JOIN members m ON m.member_id = p.author_id
-WHERE COALESCE((m.is_gm)::text, '0') IN ('1','t','true')
-  AND NOT (COALESCE((p.deleted)::text, '0') IN ('1','t','true'))
-  AND p.created_ts >= (EXTRACT(EPOCH FROM NOW() - INTERVAL '90 days') * 1000)::BIGINT
-ORDER BY p.created_ts DESC;
-
--- Index on the materialized view for fast lookups
-CREATE UNIQUE INDEX idx_gm_posts_90day_pk ON gm_posts_90day (post_id);
-CREATE INDEX idx_gm_posts_90day_ts ON gm_posts_90day (created_ts DESC);
-CREATE INDEX idx_gm_posts_90day_chan ON gm_posts_90day (chan_id, created_ts DESC);
+-- NOTE: Materialized view gm_posts_90day is NOT created here automatically
+-- because PostgreSQL doesn't support IF NOT EXISTS for materialized views.
+-- It must be created manually AFTER initial data population:
+--   python scripts/create_90day_view.py
+-- The bot will then refresh it every 10 minutes automatically.
 
 CREATE INDEX IF NOT EXISTS idx_posts_chan_ts   ON posts (chan_id, created_ts DESC);
 CREATE INDEX IF NOT EXISTS idx_posts_author_ts ON posts (author_id, created_ts DESC);

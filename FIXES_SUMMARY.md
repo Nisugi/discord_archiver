@@ -231,6 +231,13 @@ python create_90day_view.py
 
 This creates a cached view of the last 90 days of GM posts, which dramatically speeds up the default "Reset" search.
 
+**IMPORTANT:** This view is NOT created automatically during database initialization because PostgreSQL doesn't support `IF NOT EXISTS` for materialized views. You must run this script manually AFTER the database is populated with data.
+
+For fresh installations:
+1. First run `init_db.py` to create tables
+2. Let the bot archive some messages
+3. Then run `create_90day_view.py` to create the optimized view
+
 ### 4. Restart Services
 ```bash
 # Restart bot (this starts the 10-minute refresh task for the materialized view)
