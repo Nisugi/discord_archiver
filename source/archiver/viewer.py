@@ -342,38 +342,34 @@ def get_channels():
         from archiver.config import PRIVATE_CHANNELS
     except ImportError:
         PRIVATE_CHANNELS = set()
-    
+
     try:
         # Check cache first
         cached = get_cached_data('channels')
         if cached is not None:
             return jsonify(cached)
-            
+
         start_time = time.time()
         db = get_db()
 
-        # MUCH faster approach - use the gm_posts_view which is already optimized
+        # MUCH faster approach - use INNER JOIN instead of EXISTS
         ignored_clause = ""
         ignored_params = []
         if PRIVATE_CHANNELS:
             placeholders = ",".join("?" * len(PRIVATE_CHANNELS))
             ignored_clause = f"AND c.chan_id NOT IN ({placeholders})"
             ignored_params = [str(ch_id) for ch_id in PRIVATE_CHANNELS]
-        
-        # Optimized query - get channels that have GM posts directly from the view
+
+        # Optimized query - INNER JOIN is faster than EXISTS subquery
         rows = db.execute(f"""
-            SELECT DISTINCT 
-                c.chan_id, 
-                c.name, 
+            SELECT DISTINCT
+                c.chan_id,
+                c.name,
                 COALESCE(p.name, '') AS parent_name
             FROM channels c
             LEFT JOIN channels p ON c.parent_id = p.chan_id
-            WHERE EXISTS (
-                SELECT 1 FROM gm_posts_view gv 
-                WHERE gv.chan_id = c.chan_id 
-                LIMIT 1
-            )
-            AND c.accessible IS TRUE
+            INNER JOIN gm_posts_view gv ON gv.chan_id = c.chan_id
+            WHERE c.accessible IS TRUE
             {ignored_clause}
             ORDER BY parent_name, c.name
             LIMIT 500
@@ -408,28 +404,24 @@ def get_all_channels():
         cached = get_cached_data('all_channels')
         if cached is not None:
             return jsonify(cached)
-            
+
         start_time = time.time()
         db = get_db()
 
-        # MUCH faster approach - use the gm_posts_view which is already optimized
+        # MUCH faster approach - use INNER JOIN instead of EXISTS
         ignored_clause = ""
         ignored_params = []
-        
-        # Optimized query - get channels that have GM posts directly from the view
+
+        # Optimized query - INNER JOIN is faster than EXISTS subquery
         rows = db.execute(f"""
-            SELECT DISTINCT 
-                c.chan_id, 
-                c.name, 
+            SELECT DISTINCT
+                c.chan_id,
+                c.name,
                 COALESCE(p.name, '') AS parent_name
             FROM channels c
             LEFT JOIN channels p ON c.parent_id = p.chan_id
-            WHERE EXISTS (
-                SELECT 1 FROM gm_posts_view gv 
-                WHERE gv.chan_id = c.chan_id 
-                LIMIT 1
-            )
-            AND c.accessible IS TRUE
+            INNER JOIN gm_posts_view gv ON gv.chan_id = c.chan_id
+            WHERE c.accessible IS TRUE
             {ignored_clause}
             ORDER BY parent_name, c.name
             LIMIT 500
