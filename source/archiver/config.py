@@ -130,6 +130,27 @@ SKIP_CRAWL_FORUMS = {
     # These will be skipped during backfill but new messages will still be processed
 }
 
+# Featured channels - curated list shown by default in channel dropdown
+# Users can still search all 1,630+ channels, but these are highlighted
+FEATURED_CHANNELS = {
+    387270949499830273,  # game-chatter
+    387271714012135425,  # help
+    387271313695309824,  # prime
+    387271364572086272,  # premium
+    387271396218241024,  # platinum
+    387271438081720331,  # shattered
+    387271681539833858,  # festivals-and-events
+    541653031691747329,  # roleplaying
+    387286877327065108,  # scripting
+    532373273816858636,  # mechanics
+    1271943281613340775, # gemstones
+    594010837732294735,  # events
+    594009933763051549,  # duskruin
+    594009960166457344,  # ebon-gate
+    701166110204231733,  # rings-of-lumnis
+    594009994953883648,  # rumor-woods
+}
+
 # GM name overrides - maps Discord user ID to display name
 # This is the single source of truth for all GMs
 GM_NAME_OVERRIDES = {

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, request, jsonify, g, Response, send_from_directory, abort
 from werkzeug.serving import run_simple
-from .config import PRIVATE_CHANNELS, SOURCE_GUILD_ID, DATABASE_URL
+from .config import PRIVATE_CHANNELS, SOURCE_GUILD_ID, DATABASE_URL, FEATURED_CHANNELS
 
 
 def _convert_placeholders(sql: str) -> str:
@@ -373,15 +373,32 @@ def get_channels():
               AND c.has_gm_posts IS TRUE
             {ignored_clause}
             ORDER BY parent_name, c.name
-            LIMIT 500
         """, ignored_params)
-        
-        grouped = {}
+
+        # Separate featured channels from regular channels
+        featured = []
+        regular_grouped = {}
+
         for r in rows:
-            parent = r['parent_name'] or r['name']
-            if parent not in grouped:
-                grouped[parent] = []
-            grouped[parent].append({'id': r['chan_id'], 'name': r['name']})
+            chan_id_int = int(r['chan_id'])
+            channel_entry = {'id': r['chan_id'], 'name': r['name']}
+
+            if chan_id_int in FEATURED_CHANNELS:
+                featured.append(channel_entry)
+            else:
+                parent = r['parent_name'] or r['name']
+                if parent not in regular_grouped:
+                    regular_grouped[parent] = []
+                regular_grouped[parent].append(channel_entry)
+
+        # Build final grouped structure with Featured first
+        grouped = {}
+        if featured:
+            grouped['Featured Channels'] = sorted(featured, key=lambda x: x['name'])
+
+        # Add all other groups alphabetically
+        for parent in sorted(regular_grouped.keys()):
+            grouped[parent] = regular_grouped[parent]
 
         # Cache the result
         set_cached_data('channels', grouped)
@@ -426,15 +443,32 @@ def get_all_channels():
               AND c.has_gm_posts IS TRUE
             {ignored_clause}
             ORDER BY parent_name, c.name
-            LIMIT 500
         """, ignored_params)
-        
-        grouped = {}
+
+        # Separate featured channels from regular channels
+        featured = []
+        regular_grouped = {}
+
         for r in rows:
-            parent = r['parent_name'] or r['name']
-            if parent not in grouped:
-                grouped[parent] = []
-            grouped[parent].append({'id': r['chan_id'], 'name': r['name']})
+            chan_id_int = int(r['chan_id'])
+            channel_entry = {'id': r['chan_id'], 'name': r['name']}
+
+            if chan_id_int in FEATURED_CHANNELS:
+                featured.append(channel_entry)
+            else:
+                parent = r['parent_name'] or r['name']
+                if parent not in regular_grouped:
+                    regular_grouped[parent] = []
+                regular_grouped[parent].append(channel_entry)
+
+        # Build final grouped structure with Featured first
+        grouped = {}
+        if featured:
+            grouped['Featured Channels'] = sorted(featured, key=lambda x: x['name'])
+
+        # Add all other groups alphabetically
+        for parent in sorted(regular_grouped.keys()):
+            grouped[parent] = regular_grouped[parent]
 
         # Cache the result
         set_cached_data('all_channels', grouped)
@@ -1082,11 +1116,26 @@ def surprise_search():
             where_clauses.append("p.content_tsv @@ websearch_to_tsquery('english', ?)")
             params.append(q)
 
-        # Channel filter
+        # Channel filter - include parent channels AND their children (threads)
         if channels:
+            # Find all child channels where parent_id matches any selected channel
             placeholders = ",".join("?" * len(channels))
+            child_rows = db.execute(f"""
+                SELECT chan_id
+                FROM channels
+                WHERE parent_id IN ({placeholders})
+            """, channels)
+
+            # Combine selected channels + their children
+            all_channel_ids = set(channels)
+            for row in child_rows:
+                all_channel_ids.add(row['chan_id'])
+
+            # Build filter for all channels
+            all_channel_ids_list = list(all_channel_ids)
+            placeholders = ",".join("?" * len(all_channel_ids_list))
             where_clauses.append(f"p.chan_id IN ({placeholders})")
-            params.extend(channels)
+            params.extend(all_channel_ids_list)
 
         # Member filter
         if members:

@@ -32,13 +32,13 @@ if DATABASE_URL.startswith("postgresql"):
                     print(f"Current name in gm_names table: {row[0]}")
 
                     if row[0] == "Quillic":
-                        print("Updating to Sotsona...")
+                        print("Updating to Quilic...")
                         cur.execute("UPDATE gm_names SET gm_name = %s WHERE author_id = %s",
                                   ("Quilic", "426755949701890050"))
                         conn.commit()
-                        print("✅ Successfully updated name to Sotsona")
+                        print("✅ Successfully updated name to Quilic")
                     elif row[0] == "Quilic":
-                        print("✅ Name is already correct (Sotsona)")
+                        print("✅ Name is already correct (Quilic)")
                     else:
                         print(f"⚠️ Unexpected name: {row[0]}")
                 else:
