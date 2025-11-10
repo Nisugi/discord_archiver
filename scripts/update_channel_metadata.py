@@ -135,12 +135,8 @@ async def main():
 
     print("Starting Discord client...")
 
-    # Create self-bot client
-    intents = discord.Intents.default()
-    intents.guilds = True
-    intents.messages = True
-
-    client = discord.Client(intents=intents, self_bot=True)
+    # Create self-bot client (no intents needed for self-bots)
+    client = discord.Client()
 
     @client.event
     async def on_ready():
