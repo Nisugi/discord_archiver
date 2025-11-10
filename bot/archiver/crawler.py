@@ -55,7 +55,7 @@ async def save_channel(db, chan_id, name, accessible=True, parent_id=None):
         SET name = EXCLUDED.name,
             accessible = EXCLUDED.accessible
         """,
-        (str(chan_id), name, 1 if accessible else 0)
+        (str(chan_id), name, accessible)
     )
     
     # Update parent_id if provided
