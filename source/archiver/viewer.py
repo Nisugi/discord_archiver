@@ -842,8 +842,8 @@ def get_stats():
         # CRITICAL: Use pre-calculated counts from bot_metadata table
         # First, check if we have cached counts
         cursor = db.execute("""
-            SELECT key, value FROM bot_metadata 
-            WHERE key IN ('stats_total_posts', 'stats_total_gms', 'stats_last_updated')
+            SELECT key, value FROM bot_metadata
+            WHERE key IN ('stats_total_posts', 'stats_total_gms', 'stats_total_all_posts', 'stats_last_updated')
         """)
         
         cached_stats = {row['key']: row['value'] for row in cursor}
@@ -856,10 +856,12 @@ def get_stats():
             # Use cached values
             stats['total_posts'] = int(cached_stats.get('stats_total_posts', '0'))
             stats['total_gms'] = int(cached_stats.get('stats_total_gms', '0'))
+            stats['total_all_posts'] = int(cached_stats.get('stats_total_all_posts', '0'))
         else:
             # Need to recalculate - but do it in a background thread
             stats['total_posts'] = int(cached_stats.get('stats_total_posts', '0'))  # Use old value for now
             stats['total_gms'] = int(cached_stats.get('stats_total_gms', '0'))
+            stats['total_all_posts'] = int(cached_stats.get('stats_total_all_posts', '0'))
             
             # Trigger background update
             def update_stats_async():
@@ -874,6 +876,10 @@ def get_stats():
                     cursor = temp_db.execute(f"SELECT COUNT(*) as count FROM members WHERE {_truthy('is_gm')}")
                     total_gms = cursor.fetchone()['count']
 
+                    # Count ALL posts (for surprise search)
+                    cursor = temp_db.execute("SELECT COUNT(*) as count FROM posts")
+                    total_all_posts = cursor.fetchone()['count']
+
                     upsert_sql = """
                         INSERT INTO bot_metadata (key, value, updated_at)
                         VALUES (?, ?, ?)
@@ -883,6 +889,7 @@ def get_stats():
                     """
                     temp_db.execute(upsert_sql, ('stats_total_posts', str(total_posts), current_time))
                     temp_db.execute(upsert_sql, ('stats_total_gms', str(total_gms), current_time))
+                    temp_db.execute(upsert_sql, ('stats_total_all_posts', str(total_all_posts), current_time))
                     temp_db.execute(upsert_sql, ('stats_last_updated', str(current_time), current_time))
                     temp_db.commit()
                     temp_db.close()
@@ -891,7 +898,7 @@ def get_stats():
                     with endpoint_cache['lock']:
                         endpoint_cache['stats'] = None
 
-                    print(f"[Viewer] Stats updated in background: {total_posts:,} posts, {total_gms} GMs")
+                    print(f"[Viewer] Stats updated in background: {total_posts:,} GM posts, {total_gms} GMs, {total_all_posts:,} total posts")
                 except Exception as e:
                     print(f"[Viewer] Background stats update failed: {e}")
                 finally:
@@ -1070,10 +1077,10 @@ def surprise_search():
         params        = []
 
         # deleted filter
+        # By default, show ALL posts (including deleted)
+        # Only filter when deleted_only is explicitly set
         if deleted_only:
             where_clauses.append(_truthy("p.deleted"))
-        else:
-            where_clauses.append(_falsy("p.deleted"))
 
         # FTS clause
         if q:
@@ -1120,6 +1127,7 @@ def surprise_search():
                     p.author_id,
                     p.created_ts AS ts,
                     p.content,
+                    p.deleted,
                     c.name       AS channel_name,
                     COALESCE(m.display_name, m.username, 'Unknown') AS author_name
             FROM posts p
@@ -1139,6 +1147,7 @@ def surprise_search():
             'author': r['author_name'],
             'content': r['content'],
             'timestamp': r['ts'],
+            'deleted': bool(r['deleted']) if r['deleted'] else False,
         } for r in rows]
 
         # Count query for pagination
@@ -2612,6 +2621,10 @@ surprise_template = '''
             padding: 14px 16px;
         }
         .post:last-child { border-bottom: none; }
+        .post.deleted {
+            background: #4a1a1a;
+            border-left: 3px solid #8b1a1a;
+        }
         .post-header {
             display: flex;
             gap: 6px;
@@ -2715,6 +2728,10 @@ surprise_template = '''
             .btn-primary { background: #2563eb; }
             .btn-secondary { background: #4b5563; }
             .post { border-bottom-color: #2a3040; }
+            .post.deleted {
+                background: #3d1a1a;
+                border-left-color: #8b1a1a;
+            }
             .post-channel,
             .post-time,
             .post-link,
@@ -2748,7 +2765,7 @@ surprise_template = '''
             </div>
             <div class="subtitle">Inspect deleted, edited, or legacy posts with full-text search.</div>
             <div class="search-top">
-                <input type="text" id="query" placeholder="Search deleted content...">
+                <input type="text" id="query" placeholder="Search all content...">
                 <input type="date" id="dateFrom">
                 <input type="date" id="dateTo">
                 <button class="btn-primary" onclick="doSearch(1)">Search</button>
@@ -2767,7 +2784,7 @@ surprise_template = '''
                     <div id="surpriseMemberStatus" class="status-text"></div>
                 </div>
                 <label class="inline-toggle">
-                    <input type="checkbox" id="deletedOnly" checked>
+                    <input type="checkbox" id="deletedOnly">
                     Deleted only
                 </label>
                 <label class="inline-toggle">
@@ -2840,7 +2857,7 @@ function resetForm() {
     document.getElementById("query").value = "";
     document.getElementById("dateFrom").value = "";
     document.getElementById("dateTo").value = "";
-    document.getElementById("deletedOnly").checked = true;
+    document.getElementById("deletedOnly").checked = false;
     document.getElementById("surpriseAllTime").checked = false;
     document.getElementById("pageSize").value = "50";
     if (channelChoices) channelChoices.removeActiveItems();
@@ -2957,12 +2974,13 @@ async function doSearch(page = 1) {
         const end = start + data.results.length - 1;
         summaryEl.textContent = `${total.toLocaleString()} results • Showing ${start}-${end} • Page ${data.page} of ${Math.max(1, data.total_pages || 1)} • ${document.getElementById("deletedOnly").checked ? "Deleted only" : "All posts"}`;
         resultsDiv.innerHTML = data.results.map(post => `
-            <div class="post">
+            <div class="post${post.deleted ? ' deleted' : ''}">
                 <div class="post-header">
                     <span class="post-author">${escapeHtml(post.author || "Unknown")}</span>
                     <span>•</span>
                     <span class="post-channel">#${escapeHtml(post.channel || "unknown")}</span>
                     <span class="post-time">${formatDate(post.timestamp)}</span>
+                    ${post.deleted ? '<span style="color: #f87171; font-weight: 600;">[DELETED]</span>' : ''}
                 </div>
                 <div class="post-content">${escapeHtml(post.content || "(no content)")}</div>
                 <div class="post-link">ID: ${post.id}</div>
@@ -2991,7 +3009,10 @@ async function loadStats() {
     try {
         const res = await fetch("/api/stats");
         const data = await res.json();
-        if (typeof data.total_posts !== "undefined") {
+        // Use total_all_posts for surprise page (entire database)
+        if (typeof data.total_all_posts !== "undefined") {
+            postCountEl.textContent = Number(data.total_all_posts).toLocaleString();
+        } else if (typeof data.total_posts !== "undefined") {
             postCountEl.textContent = Number(data.total_posts).toLocaleString();
         } else if (typeof data.posts !== "undefined") {
             postCountEl.textContent = Number(data.posts).toLocaleString();
