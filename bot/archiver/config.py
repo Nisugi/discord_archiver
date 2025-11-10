@@ -131,25 +131,33 @@ SKIP_CRAWL_FORUMS = {
 }
 
 # Featured channels - curated list shown by default in channel dropdown
-# Users can still search all 1,630+ channels, but these are highlighted
+# Maps channel ID to display name (None = use Discord's name)
+# This is the single source of truth for featured channels and their display names
 FEATURED_CHANNELS = {
-    387270949499830273,  # game-chatter
-    387271714012135425,  # help
-    387271313695309824,  # prime
-    387271364572086272,  # premium
-    387271396218241024,  # platinum
-    387271438081720331,  # shattered
-    387271681539833858,  # festivals-and-events
-    541653031691747329,  # roleplaying
-    387286877327065108,  # scripting
-    532373273816858636,  # mechanics
-    1271943281613340775, # gemstones
-    594010837732294735,  # events
-    594009933763051549,  # duskruin
-    594009960166457344,  # ebon-gate
-    701166110204231733,  # rings-of-lumnis
-    594009994953883648,  # rumor-woods
+    387270949499830273: None,  # game-chatter
+    387271714012135425: None,  # help channel
+    1026551028788772914: "help forum",  # help forum (override to distinguish from help channel)
+    387271313695309824: None,  # prime
+    387271364572086272: None,  # premium
+    387271396218241024: None,  # platinum
+    387271438081720331: None,  # shattered
+    387271681539833858: None,  # festivals-and-events
+    541653031691747329: None,  # roleplaying
+    387286877327065108: None,  # scripting
+    532373273816858636: None,  # mechanics
+    1271943281613340775: None,  # gemstones
+    594010837732294735: None,  # events
+    594009933763051549: None,  # duskruin
+    594009960166457344: None,  # ebon-gate
+    701166110204231733: None,  # rings-of-lumnis
+    594009994953883648: None,  # rumor-woods
 }
+
+# Automatically derived from FEATURED_CHANNELS
+FEATURED_CHANNEL_IDS = set(FEATURED_CHANNELS.keys())
+
+# Channel name overrides - derived from FEATURED_CHANNELS
+CHANNEL_NAME_OVERRIDES = {k: v for k, v in FEATURED_CHANNELS.items() if v is not None}
 
 # GM name overrides - maps Discord user ID to display name
 # This is the single source of truth for all GMs

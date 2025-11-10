@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, request, jsonify, g, Response, send_from_directory, abort
 from werkzeug.serving import run_simple
-from .config import PRIVATE_CHANNELS, SOURCE_GUILD_ID, DATABASE_URL, FEATURED_CHANNELS
+from .config import PRIVATE_CHANNELS, SOURCE_GUILD_ID, DATABASE_URL, FEATURED_CHANNEL_IDS, CHANNEL_NAME_OVERRIDES
 
 
 def _convert_placeholders(sql: str) -> str:
@@ -381,9 +381,11 @@ def get_channels():
 
         for r in rows:
             chan_id_int = int(r['chan_id'])
-            channel_entry = {'id': r['chan_id'], 'name': r['name']}
+            # Apply channel name override if one exists, otherwise use Discord name
+            display_name = CHANNEL_NAME_OVERRIDES.get(chan_id_int, r['name'])
+            channel_entry = {'id': r['chan_id'], 'name': display_name}
 
-            if chan_id_int in FEATURED_CHANNELS:
+            if chan_id_int in FEATURED_CHANNEL_IDS:
                 featured.append(channel_entry)
             else:
                 parent = r['parent_name'] or r['name']
@@ -451,9 +453,11 @@ def get_all_channels():
 
         for r in rows:
             chan_id_int = int(r['chan_id'])
-            channel_entry = {'id': r['chan_id'], 'name': r['name']}
+            # Apply channel name override if one exists, otherwise use Discord name
+            display_name = CHANNEL_NAME_OVERRIDES.get(chan_id_int, r['name'])
+            channel_entry = {'id': r['chan_id'], 'name': display_name}
 
-            if chan_id_int in FEATURED_CHANNELS:
+            if chan_id_int in FEATURED_CHANNEL_IDS:
                 featured.append(channel_entry)
             else:
                 parent = r['parent_name'] or r['name']
