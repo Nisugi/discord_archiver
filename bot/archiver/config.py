@@ -134,23 +134,58 @@ SKIP_CRAWL_FORUMS = {
 # Maps channel ID to display name (None = use Discord's name)
 # This is the single source of truth for featured channels and their display names
 FEATURED_CHANNELS = {
-    387270949499830273: None,  # game-chatter
-    387271714012135425: None,  # help channel
+    387270949499830273: "game-chatter",  # game-chatter
+    1026549641963126795: "general forum",  # general forum (override to distinguish from general channel)
+    387271714012135425: "help",  # help channel
     1026551028788772914: "help forum",  # help forum (override to distinguish from help channel)
-    387271313695309824: None,  # prime
-    387271364572086272: None,  # premium
-    387271396218241024: None,  # platinum
-    387271438081720331: None,  # shattered
-    387271681539833858: None,  # festivals-and-events
-    541653031691747329: None,  # roleplaying
-    387286877327065108: None,  # scripting
-    532373273816858636: None,  # mechanics
-    1271943281613340775: None,  # gemstones
-    594010837732294735: None,  # events
-    594009933763051549: None,  # duskruin
-    594009960166457344: None,  # ebon-gate
-    701166110204231733: None,  # rings-of-lumnis
-    594009994953883648: None,  # rumor-woods
+    387271313695309824: "prime",  # prime
+    387271364572086272: "premium",  # premium
+    387271396218241024: "platinum",  # platinum
+    387271438081720331: "shattered",  # shattered
+    387271681539833858: "festivals-and-events",  # festivals-and-events
+    541653031691747329: "roleplaying",  # roleplaying
+    387286877327065108: "scripting",  # scripting
+    1082473495214182460: "simucon",  # simucon
+    1331043359715758162: "merchanting",  # merchanting
+    532373273816858636: "mechanics",  # mechanics
+    1026551770299768925: "mechanics forum",  # mechanics forum
+    1271943281613340775: "gemstones",  # gemstones
+    930939030546296832: "bards",  # bards
+    930938941534789672: "clerics",  # clerics
+    930938962808274975: "empaths", # empaths
+    930939047700992080: "monks", # monks
+    930939059268890644: "paladins", # paladins
+    930939014956073011: "rangers", # rangers
+    930938808709578822: "rogues", # rogues
+    930938987814744115: "sorcerers", # sorcerers
+    930938713800867952: "warriors", # warriors
+    930938913613295707: "wizards", # wizards
+    1026553026326056991: "professions forum",  # professions forum
+    928769266008879104: "towns",  # towns
+    1026562326461161483: "towns forum",  # towns forum
+    928780797899595896: "cysaegir",  # cysaegir
+    928780617913610240: "icemule-trace",  # icemule-trace
+    928780402154434580: "kharam-dzu-teras",  # kharam-dzu-teras
+    928780821249294387: "kraken's-fall",  # kraken's-fall
+    928780775380353054: "mist-harbor-four-winds",  # mist-harbor-four-winds
+    928780592147996702: "river's-rest",  # river's rest
+    1255994886621106287: "sablecross",  # sablecross
+    928780559373705256: "solhaven",  # solhaven
+    928780701426397266: "ta'illistim",  # ta'illistim
+    928780734079070218: "ta'vaalor", # ta'vaalor
+    928780323339272222: "wehnimer's-landing",  # wehnimer's-landing
+    928780650859864084: "zul-logoth",  # zul-logoth
+    1026556174188937236: "world-events forum",  # world-events
+    1027573075648200734: "che-mho forum",  # che-mho
+    1026553470192459866: "races forum",  # races
+    1026554655565680792: "roleplaying forum", # roleplaying
+    594010837732294735: "events",  # events
+    594009933763051549: "duskruin",  # duskruin
+    594009960166457344: "ebon-gate",  # ebon-gate
+    701166110204231733: "rings-of-lumnis",  # rings-of-lumnis
+    594009994953883648: "rumor-woods",  # rumor-woods
+    1026555304550355044: "paid-events forum",  # paid-events forum
+    988879927824777216: "archive",  # archive
 }
 
 # Automatically derived from FEATURED_CHANNELS
