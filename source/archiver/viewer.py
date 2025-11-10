@@ -360,41 +360,30 @@ def get_channels():
             ignored_clause = f"AND c.chan_id NOT IN ({placeholders})"
             ignored_params = [str(ch_id) for ch_id in PRIVATE_CHANNELS]
 
-        # Return all parent channels (no threads) organized as featured + others
-        # Frontend will initially display only Featured, but search works across all
+        # Return ONLY featured channels - clean and simple
+        # No other channels to avoid thread clutter
+        featured_ids = [str(cid) for cid in FEATURED_CHANNEL_IDS]
+        featured_placeholders = ",".join("?" * len(featured_ids))
+
         rows = db.execute(f"""
             SELECT
                 c.chan_id,
                 c.name
             FROM channels c
-            WHERE c.accessible IS TRUE
-              AND c.has_gm_posts IS TRUE
-              AND c.parent_id IS NULL
-            {ignored_clause}
+            WHERE c.chan_id IN ({featured_placeholders})
             ORDER BY c.name
-        """, ignored_params)
+        """, featured_ids)
 
-        # Separate featured from other channels
+        # Build featured channels list with name overrides
         featured = []
-        other = []
-
         for r in rows:
             chan_id_int = int(r['chan_id'])
             # Apply channel name override if one exists, otherwise use Discord name
             display_name = CHANNEL_NAME_OVERRIDES.get(chan_id_int, r['name'])
-            channel_entry = {'id': r['chan_id'], 'name': display_name}
+            featured.append({'id': r['chan_id'], 'name': display_name})
 
-            if chan_id_int in FEATURED_CHANNEL_IDS:
-                featured.append(channel_entry)
-            else:
-                other.append(channel_entry)
-
-        # Return with featured first, then all others
-        grouped = {}
-        if featured:
-            grouped['Featured Channels'] = sorted(featured, key=lambda x: x['name'])
-        if other:
-            grouped['Other Channels'] = sorted(other, key=lambda x: x['name'])
+        # Return only featured channels
+        grouped = {'Featured Channels': sorted(featured, key=lambda x: x['name'])}
 
         # Cache the result
         set_cached_data('channels', grouped)
@@ -422,40 +411,30 @@ def get_all_channels():
         start_time = time.time()
         db = get_db()
 
-        # Return all parent channels (no threads) organized as featured + others
-        # Frontend will initially display only Featured, but search works across all
-        rows = db.execute("""
+        # Return ONLY featured channels - clean and simple
+        # No other channels to avoid thread clutter
+        featured_ids = [str(cid) for cid in FEATURED_CHANNEL_IDS]
+        featured_placeholders = ",".join("?" * len(featured_ids))
+
+        rows = db.execute(f"""
             SELECT
                 c.chan_id,
                 c.name
             FROM channels c
-            WHERE c.accessible IS TRUE
-              AND c.has_gm_posts IS TRUE
-              AND c.parent_id IS NULL
+            WHERE c.chan_id IN ({featured_placeholders})
             ORDER BY c.name
-        """)
+        """, featured_ids)
 
-        # Separate featured from other channels
+        # Build featured channels list with name overrides
         featured = []
-        other = []
-
         for r in rows:
             chan_id_int = int(r['chan_id'])
             # Apply channel name override if one exists, otherwise use Discord name
             display_name = CHANNEL_NAME_OVERRIDES.get(chan_id_int, r['name'])
-            channel_entry = {'id': r['chan_id'], 'name': display_name}
+            featured.append({'id': r['chan_id'], 'name': display_name})
 
-            if chan_id_int in FEATURED_CHANNEL_IDS:
-                featured.append(channel_entry)
-            else:
-                other.append(channel_entry)
-
-        # Return with featured first, then all others
-        grouped = {}
-        if featured:
-            grouped['Featured Channels'] = sorted(featured, key=lambda x: x['name'])
-        if other:
-            grouped['Other Channels'] = sorted(other, key=lambda x: x['name'])
+        # Return only featured channels
+        grouped = {'Featured Channels': sorted(featured, key=lambda x: x['name'])}
 
         # Cache the result
         set_cached_data('all_channels', grouped)
@@ -2163,39 +2142,6 @@ search_template = '''
                     shouldSort: false
                 });
 
-                // Track if user is searching
-                let isSearching = false;
-
-                // Hide "Other Channels" group when dropdown opens (if not searching)
-                select.addEventListener('showDropdown', () => {
-                    if (!isSearching) {
-                        setTimeout(() => {
-                            const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
-                            if (dropdown) {
-                                dropdown.querySelectorAll('.choices__group').forEach(group => {
-                                    if (group.querySelector('.choices__heading')?.textContent.includes('Other Channels')) {
-                                        group.style.display = 'none';
-                                    }
-                                });
-                            }
-                        }, 10);
-                    }
-                });
-
-                // Listen for search input
-                const searchInput = select.parentElement.querySelector('.choices__input');
-                if (searchInput) {
-                    searchInput.addEventListener('input', (e) => {
-                        isSearching = e.target.value.length > 0;
-                        const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
-                        if (dropdown) {
-                            dropdown.querySelectorAll('.choices__group').forEach(g => {
-                                g.style.display = isSearching ? '' : (g.querySelector('.choices__heading')?.textContent.includes('Other Channels') ? 'none' : '');
-                            });
-                        }
-                    });
-                }
-
                 showReadyStatus('channelStatus', `${totalChannels} channels loaded`);
             } catch (error) {
                 console.error('Failed to load channels:', error);
@@ -2956,39 +2902,6 @@ async function loadChannels() {
             searchResultLimit: 20
         });
         channelChoices.setChoices(grouped, "value", "label", true);
-
-        // Track if user is searching
-        let isSearching = false;
-
-        // Hide "Other Channels" group when dropdown opens (if not searching)
-        select.addEventListener('showDropdown', () => {
-            if (!isSearching) {
-                setTimeout(() => {
-                    const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
-                    if (dropdown) {
-                        dropdown.querySelectorAll('.choices__group').forEach(group => {
-                            if (group.querySelector('.choices__heading')?.textContent.includes('Other Channels')) {
-                                group.style.display = 'none';
-                            }
-                        });
-                    }
-                }, 10);
-            }
-        });
-
-        // Listen for search input
-        const searchInput = select.parentElement.querySelector('.choices__input');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                isSearching = e.target.value.length > 0;
-                const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
-                if (dropdown) {
-                    dropdown.querySelectorAll('.choices__group').forEach(g => {
-                        g.style.display = isSearching ? '' : (g.querySelector('.choices__heading')?.textContent.includes('Other Channels') ? 'none' : '');
-                    });
-                }
-            });
-        }
 
         setStatus("surpriseChannelStatus", "Channels ready", true);
     } catch (err) {
