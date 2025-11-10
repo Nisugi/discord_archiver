@@ -1082,9 +1082,10 @@ def surprise_search():
         if deleted_only:
             where_clauses.append(_truthy("p.deleted"))
 
-        # FTS clause
+        # FTS clause - use PostgreSQL full-text search
         if q:
-            where_clauses.append("posts_fts MATCH ?")
+            # Use websearch_to_tsquery for natural search syntax
+            where_clauses.append("p.content_tsv @@ websearch_to_tsquery('english', ?)")
             params.append(q)
 
         # Channel filter
@@ -1118,9 +1119,7 @@ def surprise_search():
 
         where_clause = " AND ".join(f"({c})" for c in where_clauses) or "1=1"
 
-        # Main query (FTS join only when needed)
-        join_fts = "JOIN posts_fts ON posts_fts.rowid = p.post_id" if q else ""
-
+        # Main query - no need for FTS join in PostgreSQL (content_tsv is part of posts table)
         sql = f"""
             SELECT  p.post_id  AS id,
                     p.chan_id,
@@ -1133,7 +1132,6 @@ def surprise_search():
             FROM posts p
             JOIN members  m ON p.author_id = m.member_id
             LEFT JOIN channels c ON p.chan_id = c.chan_id
-            {join_fts}
             WHERE {where_clause}
             ORDER BY p.created_ts DESC
             LIMIT ? OFFSET ?
@@ -1154,7 +1152,6 @@ def surprise_search():
         count_sql = f"""
             SELECT COUNT(*)
             FROM posts p
-            {join_fts}
             WHERE {where_clause}
         """
         total = db.execute(count_sql, params).fetchone()[0]
