@@ -183,6 +183,7 @@ SEED_BLUE_IDS = {
     190295595125047296,  # Tamuz  (late addition)
     306995432981266433,  # Modrian
     401257353866903553,  # Kenstrom
+    869737767972773928,  # Hivala
 }
 
 GM_NAME_OVERRIDES = {
