@@ -1606,6 +1606,30 @@ search_template = '''
         .post-link a:active {
             color: #1a73e8;
         }
+
+        .post-link button {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 0;
+            text-decoration: none;
+            margin-left: 5px;
+        }
+
+        .post-link button:hover {
+            color: #1a73e8;
+            text-decoration: underline;
+        }
+
+        .post-link button:active {
+            color: #1a73e8;
+        }
+
+        .post-link button.copied {
+            color: #0f9d58;
+        }
         
         .pagination {
             display: flex;
@@ -1872,8 +1896,12 @@ search_template = '''
             .post-channel,
             .post-time,
             .post-link a,
+            .post-link button,
             .search-help {
                 color: #9ca3af;
+            }
+            .post-link button:hover {
+                color: #60a5fa;
             }
             .reply-to {
                 background: #222738;
@@ -2245,6 +2273,7 @@ search_template = '''
                         <div class="post-content">${highlightSearch(escapeHtml(post.content || '(no content)'))}</div>
                         <div class="post-link">
                             <a href="${post.jump_url}" target="_blank">Jump to message ↗</a>
+                            <button onclick="copyToClipboard('${post.jump_url}', this)" title="Copy link to clipboard">Copy link</button>
                             • ID: ${post.id}
                         </div>
                     </div>
@@ -2319,6 +2348,27 @@ search_template = '''
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function copyToClipboard(text, button) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Visual feedback
+                const originalText = button.textContent;
+                button.textContent = 'Copied ✓';
+                button.classList.add('copied');
+
+                // Reset after 2 seconds
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.classList.remove('copied');
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                button.textContent = 'Failed to copy';
+                setTimeout(() => {
+                    button.textContent = 'Copy link';
+                }, 2000);
+            });
         }
         
         function formatDate(iso) {
