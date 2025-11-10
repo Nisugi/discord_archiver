@@ -11,17 +11,11 @@ Run this after deploying the updated code.
 """
 import os
 import sys
-from pathlib import Path
-
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from dotenv import load_dotenv
-load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    print("ERROR: DATABASE_URL not set in .env file")
+    print("ERROR: DATABASE_URL environment variable not set")
+    print("Set it with: export DATABASE_URL='postgresql://...'")
     sys.exit(1)
 
 if DATABASE_URL.startswith("postgresql"):
