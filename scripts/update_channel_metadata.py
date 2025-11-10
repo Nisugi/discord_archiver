@@ -42,8 +42,8 @@ async def update_channel_metadata(client: discord.Client):
     for channel in guild.channels:
         all_channels.append(channel)
 
-    # Get all threads (active and archived)
-    print("Fetching threads...")
+    # Get all threads (active and archived) from text channels
+    print("Fetching threads from text channels...")
     for channel in guild.text_channels:
         try:
             # Get active threads
@@ -54,7 +54,30 @@ async def update_channel_metadata(client: discord.Client):
             async for thread in channel.archived_threads(limit=None):
                 all_channels.append(thread)
         except Exception as e:
-            print(f"Warning: Could not fetch threads from {channel.name}: {e}")
+            print(f"Warning: Could not fetch threads from text channel {channel.name}: {e}")
+
+    # Get all threads from forum channels
+    print("Fetching threads from forum channels...")
+    for channel in guild.channels:
+        # Check if this is a forum channel
+        if hasattr(channel, 'type') and str(channel.type) == 'forum':
+            try:
+                print(f"  Processing forum: {channel.name}")
+
+                # Get active threads
+                active_threads = channel.threads
+                all_channels.extend(active_threads)
+                print(f"    Found {len(active_threads)} active threads")
+
+                # Get archived threads
+                archived_count = 0
+                async for thread in channel.archived_threads(limit=None):
+                    all_channels.append(thread)
+                    archived_count += 1
+                print(f"    Found {archived_count} archived threads")
+
+            except Exception as e:
+                print(f"Warning: Could not fetch threads from forum {channel.name}: {e}")
 
     print(f"\nFound {len(all_channels)} total channels/threads")
     print("Updating database...")
