@@ -360,30 +360,23 @@ def get_channels():
             ignored_clause = f"AND c.chan_id NOT IN ({placeholders})"
             ignored_params = [str(ch_id) for ch_id in PRIVATE_CHANNELS]
 
-        # Super fast query using denormalized has_gm_posts column
-        # This column is maintained automatically when GM posts are saved
-        # Exclude threads (type='public_thread') - only show parent channels
-        # Include featured channels even if they don't have has_gm_posts (e.g., forum containers)
-        featured_ids = [str(cid) for cid in FEATURED_CHANNEL_IDS]
-        featured_placeholders = ",".join("?" * len(featured_ids))
-
+        # Return all parent channels (no threads) organized as featured + others
+        # Frontend will initially display only Featured, but search works across all
         rows = db.execute(f"""
             SELECT
                 c.chan_id,
-                c.name,
-                COALESCE(p.name, '') AS parent_name
+                c.name
             FROM channels c
-            LEFT JOIN channels p ON c.parent_id = p.chan_id
             WHERE c.accessible IS TRUE
-              AND (c.has_gm_posts IS TRUE OR c.chan_id IN ({featured_placeholders}))
-              AND COALESCE(c.type, '') != 'public_thread'
+              AND c.has_gm_posts IS TRUE
+              AND c.parent_id IS NULL
             {ignored_clause}
-            ORDER BY parent_name, c.name
-        """, featured_ids + ignored_params)
+            ORDER BY c.name
+        """, ignored_params)
 
-        # Separate featured channels from regular channels
+        # Separate featured from other channels
         featured = []
-        regular_grouped = {}
+        other = []
 
         for r in rows:
             chan_id_int = int(r['chan_id'])
@@ -394,19 +387,14 @@ def get_channels():
             if chan_id_int in FEATURED_CHANNEL_IDS:
                 featured.append(channel_entry)
             else:
-                parent = r['parent_name'] or r['name']
-                if parent not in regular_grouped:
-                    regular_grouped[parent] = []
-                regular_grouped[parent].append(channel_entry)
+                other.append(channel_entry)
 
-        # Build final grouped structure with Featured first
+        # Return with featured first, then all others
         grouped = {}
         if featured:
             grouped['Featured Channels'] = sorted(featured, key=lambda x: x['name'])
-
-        # Add all other groups alphabetically
-        for parent in sorted(regular_grouped.keys()):
-            grouped[parent] = regular_grouped[parent]
+        if other:
+            grouped['Other Channels'] = sorted(other, key=lambda x: x['name'])
 
         # Cache the result
         set_cached_data('channels', grouped)
@@ -434,34 +422,22 @@ def get_all_channels():
         start_time = time.time()
         db = get_db()
 
-        # MUCH faster approach - use INNER JOIN instead of EXISTS
-        ignored_clause = ""
-        ignored_params = []
-
-        # Super fast query using denormalized has_gm_posts column
-        # This column is maintained automatically when GM posts are saved
-        # Exclude threads (type='public_thread') - only show parent channels
-        # Include featured channels even if they don't have has_gm_posts (e.g., forum containers)
-        featured_ids = [str(cid) for cid in FEATURED_CHANNEL_IDS]
-        featured_placeholders = ",".join("?" * len(featured_ids))
-
-        rows = db.execute(f"""
+        # Return all parent channels (no threads) organized as featured + others
+        # Frontend will initially display only Featured, but search works across all
+        rows = db.execute("""
             SELECT
                 c.chan_id,
-                c.name,
-                COALESCE(p.name, '') AS parent_name
+                c.name
             FROM channels c
-            LEFT JOIN channels p ON c.parent_id = p.chan_id
             WHERE c.accessible IS TRUE
-              AND (c.has_gm_posts IS TRUE OR c.chan_id IN ({featured_placeholders}))
-              AND COALESCE(c.type, '') != 'public_thread'
-            {ignored_clause}
-            ORDER BY parent_name, c.name
-        """, featured_ids + ignored_params)
+              AND c.has_gm_posts IS TRUE
+              AND c.parent_id IS NULL
+            ORDER BY c.name
+        """)
 
-        # Separate featured channels from regular channels
+        # Separate featured from other channels
         featured = []
-        regular_grouped = {}
+        other = []
 
         for r in rows:
             chan_id_int = int(r['chan_id'])
@@ -472,19 +448,14 @@ def get_all_channels():
             if chan_id_int in FEATURED_CHANNEL_IDS:
                 featured.append(channel_entry)
             else:
-                parent = r['parent_name'] or r['name']
-                if parent not in regular_grouped:
-                    regular_grouped[parent] = []
-                regular_grouped[parent].append(channel_entry)
+                other.append(channel_entry)
 
-        # Build final grouped structure with Featured first
+        # Return with featured first, then all others
         grouped = {}
         if featured:
             grouped['Featured Channels'] = sorted(featured, key=lambda x: x['name'])
-
-        # Add all other groups alphabetically
-        for parent in sorted(regular_grouped.keys()):
-            grouped[parent] = regular_grouped[parent]
+        if other:
+            grouped['Other Channels'] = sorted(other, key=lambda x: x['name'])
 
         # Cache the result
         set_cached_data('all_channels', grouped)
@@ -2191,7 +2162,40 @@ search_template = '''
                     searchPlaceholderValue: 'Type to search',
                     shouldSort: false
                 });
-                
+
+                // Hide "Other Channels" group initially, show on search
+                const hideOtherChannels = () => {
+                    const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
+                    if (dropdown) {
+                        const otherGroup = Array.from(dropdown.querySelectorAll('.choices__group')).find(g =>
+                            g.textContent.includes('Other Channels')
+                        );
+                        if (otherGroup) otherGroup.style.display = 'none';
+                    }
+                };
+
+                const showAllChannels = () => {
+                    const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
+                    if (dropdown) {
+                        dropdown.querySelectorAll('.choices__group').forEach(g => g.style.display = '');
+                    }
+                };
+
+                // Listen for search input
+                const searchInput = select.parentElement.querySelector('.choices__input');
+                if (searchInput) {
+                    searchInput.addEventListener('input', (e) => {
+                        if (e.target.value) {
+                            showAllChannels();
+                        } else {
+                            hideOtherChannels();
+                        }
+                    });
+                }
+
+                // Hide initially after a short delay (let Choices.js render first)
+                setTimeout(hideOtherChannels, 100);
+
                 showReadyStatus('channelStatus', `${totalChannels} channels loaded`);
             } catch (error) {
                 console.error('Failed to load channels:', error);
@@ -2952,6 +2956,40 @@ async function loadChannels() {
             searchResultLimit: 20
         });
         channelChoices.setChoices(grouped, "value", "label", true);
+
+        // Hide "Other Channels" group initially, show on search
+        const hideOtherChannels = () => {
+            const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
+            if (dropdown) {
+                const otherGroup = Array.from(dropdown.querySelectorAll('.choices__group')).find(g =>
+                    g.textContent.includes('Other Channels')
+                );
+                if (otherGroup) otherGroup.style.display = 'none';
+            }
+        };
+
+        const showAllChannels = () => {
+            const dropdown = select.parentElement.querySelector('.choices__list--dropdown');
+            if (dropdown) {
+                dropdown.querySelectorAll('.choices__group').forEach(g => g.style.display = '');
+            }
+        };
+
+        // Listen for search input
+        const searchInput = select.parentElement.querySelector('.choices__input');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                if (e.target.value) {
+                    showAllChannels();
+                } else {
+                    hideOtherChannels();
+                }
+            });
+        }
+
+        // Hide initially after a short delay (let Choices.js render first)
+        setTimeout(hideOtherChannels, 100);
+
         setStatus("surpriseChannelStatus", "Channels ready", true);
     } catch (err) {
         console.error("Channel load failed", err);
