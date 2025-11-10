@@ -546,8 +546,18 @@ def search():
         channel_ids = [c for c in request.args.get('channels', '').split(',') if c]
         date_from   = request.args.get('date_from', '')
         date_to     = request.args.get('date_to', '')
-        page        = int(request.args.get('page', 1))
-        per_page    = min(int(request.args.get('per_page', 50)), 100)
+
+        # Parse numeric parameters with error handling
+        try:
+            page = int(request.args.get('page', 1))
+        except (ValueError, TypeError):
+            page = 1
+
+        try:
+            per_page = min(int(request.args.get('per_page', 50)), 100)
+        except (ValueError, TypeError):
+            per_page = 50
+
         sort_param  = request.args.get('sort', 'desc').lower()
         sort_dir    = 'ASC' if sort_param == 'asc' else 'DESC'
 

@@ -81,7 +81,7 @@ async def _handle_edit(before: discord.Message, after: discord.Message):
         db,
         """INSERT INTO post_revisions
            (post_id, chan_id, author_id, content, captured_ts, is_edit)
-           VALUES (?,?,?,?,?,1)""",
+           VALUES (?,?,?,?,?,TRUE)""",
         (str(after.id), str(after.channel.id), str(after.author.id), after.content, ts),
     )
 
@@ -98,7 +98,7 @@ async def _handle_delete(msg: discord.Message):
         db,
         """INSERT INTO post_revisions
            (post_id, chan_id, author_id, content, captured_ts, is_edit)
-           VALUES (?,?,?,?,?,1)""",
+           VALUES (?,?,?,?,?,TRUE)""",
         (
             str(msg.id),
             str(msg.channel.id),

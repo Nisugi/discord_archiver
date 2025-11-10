@@ -19,7 +19,7 @@ CENTRAL_CHAN_ID     = 1383196587270078515  # Not used in archive mode
 
 # Crawler settings
 # Crawl roughly 12 hours (0.5 days) of history when the bot starts
-CRAWL_BACKFILL_DAYS = 3       # How far back to crawl on startup
+CRAWL_BACKFILL_DAYS = 7       # How far back to crawl on startup
 REQ_PAUSE = 1.5                 # Seconds between Discord API requests
 PAGE_SIZE = 100                 # Messages per page when crawling
 CRAWL_VERBOSITY = 10           # Print progress every N saves
