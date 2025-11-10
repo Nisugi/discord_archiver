@@ -363,6 +363,10 @@ def get_channels():
         # Super fast query using denormalized has_gm_posts column
         # This column is maintained automatically when GM posts are saved
         # Exclude threads (type='public_thread') - only show parent channels
+        # Include featured channels even if they don't have has_gm_posts (e.g., forum containers)
+        featured_ids = [str(cid) for cid in FEATURED_CHANNEL_IDS]
+        featured_placeholders = ",".join("?" * len(featured_ids))
+
         rows = db.execute(f"""
             SELECT
                 c.chan_id,
@@ -371,11 +375,11 @@ def get_channels():
             FROM channels c
             LEFT JOIN channels p ON c.parent_id = p.chan_id
             WHERE c.accessible IS TRUE
-              AND c.has_gm_posts IS TRUE
+              AND (c.has_gm_posts IS TRUE OR c.chan_id IN ({featured_placeholders}))
               AND c.type != 'public_thread'
             {ignored_clause}
             ORDER BY parent_name, c.name
-        """, ignored_params)
+        """, featured_ids + ignored_params)
 
         # Separate featured channels from regular channels
         featured = []
@@ -437,6 +441,10 @@ def get_all_channels():
         # Super fast query using denormalized has_gm_posts column
         # This column is maintained automatically when GM posts are saved
         # Exclude threads (type='public_thread') - only show parent channels
+        # Include featured channels even if they don't have has_gm_posts (e.g., forum containers)
+        featured_ids = [str(cid) for cid in FEATURED_CHANNEL_IDS]
+        featured_placeholders = ",".join("?" * len(featured_ids))
+
         rows = db.execute(f"""
             SELECT
                 c.chan_id,
@@ -445,11 +453,11 @@ def get_all_channels():
             FROM channels c
             LEFT JOIN channels p ON c.parent_id = p.chan_id
             WHERE c.accessible IS TRUE
-              AND c.has_gm_posts IS TRUE
+              AND (c.has_gm_posts IS TRUE OR c.chan_id IN ({featured_placeholders}))
               AND c.type != 'public_thread'
             {ignored_clause}
             ORDER BY parent_name, c.name
-        """, ignored_params)
+        """, featured_ids + ignored_params)
 
         # Separate featured channels from regular channels
         featured = []

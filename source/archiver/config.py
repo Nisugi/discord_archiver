@@ -134,6 +134,12 @@ SKIP_CRAWL_FORUMS = {
 # Maps channel ID to display name (None = use Discord's name)
 # This is the single source of truth for featured channels and their display names
 FEATURED_CHANNELS = {
+    796618391262986241: "general-announcements",  # general-announcements
+    796619793934319643: "development-announcements",  # development-announcements
+    1331041053309931591: "merchant-announcements",  # merchant-announcements
+    832466682291027998: "event-announcements",  # event-announcements
+    1121832778791665716: "gamemaster-endnotes",  # gamemaster-endnotes
+    1331038020220223592: "welcome",  # welcome
     387270949499830273: "game-chatter",  # game-chatter
     1026549641963126795: "general forum",  # general forum (override to distinguish from general channel)
     387271714012135425: "help",  # help channel
@@ -185,7 +191,6 @@ FEATURED_CHANNELS = {
     701166110204231733: "rings-of-lumnis",  # rings-of-lumnis
     594009994953883648: "rumor-woods",  # rumor-woods
     1026555304550355044: "paid-events forum",  # paid-events forum
-    988879927824777216: "archive",  # archive
 }
 
 # Automatically derived from FEATURED_CHANNELS

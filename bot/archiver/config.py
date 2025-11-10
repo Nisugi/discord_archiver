@@ -185,7 +185,6 @@ FEATURED_CHANNELS = {
     701166110204231733: "rings-of-lumnis",  # rings-of-lumnis
     594009994953883648: "rumor-woods",  # rumor-woods
     1026555304550355044: "paid-events forum",  # paid-events forum
-    988879927824777216: "archive",  # archive
 }
 
 # Automatically derived from FEATURED_CHANNELS
