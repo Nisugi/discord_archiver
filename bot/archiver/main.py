@@ -17,8 +17,7 @@ except Exception:
 from .db import (
     open_db, close_db, fetchone, fetchall, save_message,
     update_gm_fts, add_to_repost_queue, get_messages_ready_to_repost,
-    mark_message_as_reposted, mark_message_as_deleted, execute_with_retry,
-    refresh_90day_view
+    mark_message_as_reposted, mark_message_as_deleted, execute_with_retry
 )
 from .repost import repost_live, build_snippet, delayed_repost_task
 from .crawler import slow_crawl
@@ -126,22 +125,6 @@ async def _flush_pending():
         msg = _pending_deletes.popleft()
         await _handle_delete(msg)
 
-async def refresh_90day_view_task(db):
-    """
-    Background task to refresh the 90-day materialized view every 10 minutes.
-    This keeps the default "Reset" view fast for users.
-    """
-    await asyncio.sleep(60)  # Wait 1 minute before first refresh
-
-    while True:
-        try:
-            await refresh_90day_view(db)
-        except Exception as e:
-            print(f"[Refresh] Error refreshing 90-day view: {e}")
-
-        # Wait 10 minutes before next refresh
-        await asyncio.sleep(600)
-
 # ── Graceful shutdown handling ─────────────────────────────────────
 async def cleanup_on_exit():
     print("\n[Archiver] Shutting down gracefully.")
@@ -201,9 +184,6 @@ async def on_ready():
         print(f"[Crawler] task started id={id(asyncio.current_task())}")
         if not getattr(client, "_crawl_task", None) or client._crawl_task.done():
             client._crawl_task = asyncio.create_task(slow_crawl(src_guild, db, build_snippet, client))
-        print(f"[Refresh] task started id={id(asyncio.current_task())}")
-        if not getattr(client, "_refresh_task", None) or client._refresh_task.done():
-            client._refresh_task = asyncio.create_task(refresh_90day_view_task(db))
 
         print("[Archiver] Ready! All systems operational.")
 
