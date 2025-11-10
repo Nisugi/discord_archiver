@@ -304,7 +304,7 @@ async def upsert_member(db, member, *, conn: Optional[asyncpg.Connection] = None
         member.name,
         getattr(member, "display_name", None),
         str(member.display_avatar.url) if getattr(member, "display_avatar", None) else None,
-        bool(getattr(member, "bot", False)),
+        1 if getattr(member, "bot", False) else 0,  # Convert boolean to int for BIGINT column
         int(member.joined_at.timestamp() * 1000) if getattr(member, "joined_at", None) else None,
     )
     sql = """
