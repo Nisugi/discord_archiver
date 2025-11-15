@@ -5,11 +5,26 @@ from datetime import datetime, timezone
 # Patch discord.py-self build number scraping (Discord website changed)
 import discord.utils
 async def _patched_get_info(session):
-    return {
-        'build_number': 9999,
-        'api_version': 9,
-        'capabilities': 0
+    # Returns (super_properties, encoded_super_properties)
+    super_props = {
+        'os': 'Windows',
+        'browser': 'Chrome',
+        'device': '',
+        'system_locale': 'en-US',
+        'browser_user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'browser_version': '120.0.0.0',
+        'os_version': '10',
+        'referrer': '',
+        'referring_domain': '',
+        'referrer_current': '',
+        'referring_domain_current': '',
+        'release_channel': 'stable',
+        'client_build_number': 9999,
+        'client_event_source': None
     }
+    import json, base64
+    encoded = base64.b64encode(json.dumps(super_props, separators=(',', ':')).encode()).decode('utf-8')
+    return (super_props, encoded)
 discord.utils._get_info = _patched_get_info
 
 from .config import (
