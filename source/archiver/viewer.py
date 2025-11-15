@@ -370,10 +370,10 @@ def get_channels():
                 c.name,
                 MAX(p.created_ts) as last_post_ts
             FROM channels c
-            LEFT JOIN posts p ON c.chan_id = p.chan_id AND p.deleted = 0
-            WHERE c.accessible = 1
+            LEFT JOIN posts p ON c.chan_id = p.chan_id AND p.deleted = FALSE
+            WHERE c.accessible = TRUE
               AND c.last_message_id IS NOT NULL
-              AND c.has_gm_posts = 1
+              AND c.has_gm_posts = TRUE
               {excluded_clause}
             GROUP BY c.chan_id, c.name
             ORDER BY last_post_ts DESC NULLS LAST
