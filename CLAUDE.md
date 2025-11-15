@@ -13,6 +13,18 @@ Discord-Archiver is a two-component system for archiving Discord messages from t
 
 The bot and viewer are **separate deployable services** that share the same PostgreSQL database.
 
+## CRITICAL: Discord Library Configuration
+
+**THIS PROJECT USES `discord.py-self` - DO NOT CHANGE IT**
+
+- **Library:** `discord.py-self==2.0.1` (self-bot library, NOT standard discord.py)
+- **NO INTENTS:** The bot uses `discord.Client()` with NO intents parameter
+- **DO NOT** suggest migrating to standard discord.py
+- **DO NOT** suggest adding intents
+- **DO NOT** change requirements.txt to use discord.py instead of discord.py-self
+
+The bot uses a user account token (via discord.py-self) to access Discord. This is the intended design. If discord.py-self has issues (like build number scraping failures), patch the library in-place using monkey-patching in main.py - DO NOT switch to standard discord.py.
+
 ## Running the Project
 
 ### Prerequisites

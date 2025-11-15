@@ -2,6 +2,16 @@ import discord, asyncio, time, signal, sys
 from collections import deque
 from datetime import datetime, timezone
 
+# Patch discord.py-self build number scraping (Discord website changed)
+import discord.utils
+async def _patched_get_info(session):
+    return {
+        'build_number': 9999,
+        'api_version': 9,
+        'capabilities': 0
+    }
+discord.utils._get_info = _patched_get_info
+
 from .config import (
     SOURCE_GUILD_ID, AGGREGATOR_GUILD_ID, CENTRAL_CHAN_ID,
     API_PAUSE, REPOST_DELAY_SECONDS, PRIVATE_CHANNELS
