@@ -395,22 +395,20 @@ def get_channels():
             else:
                 others.append(channel_obj)
 
-        # Return with Featured first (sorted alphabetically), then all others (sorted by recency)
+        # Return flat list with Featured first (sorted alphabetically), then all others (sorted by recency)
         # Featured channels appear first so they're in the initial render limit
-        # Others maintain DB order (most recent first) - so spillover shows active channels
-        grouped = {
-            'Featured Channels': sorted(featured, key=lambda x: x['name']),
-            'All Other Channels': others  # Keep DB order (timestamp DESC)
-        }
+        # Others maintain DB order (most recent first)
+        sorted_featured = sorted(featured, key=lambda x: x['name'])
+        all_channels = sorted_featured + others  # Featured first, then others by recency
 
         # Cache the result
-        set_cached_data('channels', grouped)
+        set_cached_data('channels', all_channels)
 
         total_channels = len(featured) + len(others)
         elapsed = time.time() - start_time
         print(f"[Viewer] Loaded {total_channels} channels ({len(featured)} featured, {len(others)} other) in {elapsed:.2f}s")
 
-        return jsonify(grouped)
+        return jsonify(all_channels)
     except Exception as e:
         print(f"[Viewer] Error in get_channels: {e}")
         import traceback
@@ -2143,41 +2141,35 @@ search_template = '''
         async function loadChannels() {
             try {
                 showLoadingStatus('channelStatus', 'Loading channels...');
-                
+
                 const response = await fetch('/api/channels');
                 if (!response.ok) throw new Error('Failed to load');
-                
-                const data = await response.json();
+
+                const channels = await response.json();
                 const select = document.getElementById('channelSelect');
-                let totalChannels = 0;
-                
-                for (const [group, items] of Object.entries(data)) {
-                    const optgroup = document.createElement('optgroup');
-                    optgroup.label = group;
-                    items.forEach(ch => {
-                        const opt = document.createElement('option');
-                        opt.value = ch.id;
-                        opt.text = ch.name;
-                        optgroup.appendChild(opt);
-                        totalChannels++;
-                    });
-                    select.appendChild(optgroup);
-                }
+
+                // Add all channels as flat list (featured first, then others by recency)
+                channels.forEach(ch => {
+                    const opt = document.createElement('option');
+                    opt.value = ch.id;
+                    opt.text = ch.name;
+                    select.appendChild(opt);
+                });
 
                 channelChoices = new Choices(select, {
                     removeItemButton: true,
                     placeholderValue: 'Select channels…',
                     searchPlaceholderValue: 'Type to search all channels',
                     shouldSort: false,
-                    renderChoiceLimit: 100,     // Only render first ~100 items initially
-                    searchResultLimit: 100,      // Show up to 100 search results
+                    renderChoiceLimit: 60,       // Only render first ~60 items (featured) initially
+                    searchResultLimit: 100,      // Show up to 100 search results when typing
                     fuseOptions: {               // Better fuzzy search
                         threshold: 0.3,
                         distance: 1000
                     }
                 });
 
-                showReadyStatus('channelStatus', `${totalChannels} channels loaded`);
+                showReadyStatus('channelStatus', `${channels.length} channels loaded`);
             } catch (error) {
                 console.error('Failed to load channels:', error);
                 showErrorStatus('channelStatus', 'Failed to load channels');
