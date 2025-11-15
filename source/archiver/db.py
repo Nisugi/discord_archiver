@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS channels(
     accessible      BOOLEAN,
     last_message_id TEXT,
     created_ts      BIGINT,
-    has_gm_posts    BOOLEAN DEFAULT FALSE
+    has_gm_posts    BOOLEAN DEFAULT FALSE,
+    last_gm_post_ts BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS posts(

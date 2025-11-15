@@ -362,21 +362,18 @@ def get_channels():
             excluded_clause = f"AND c.chan_id NOT IN ({placeholders})"
             excluded_params = [str(ch_id) for ch_id in excluded_channels]
 
-        # Query ALL accessible channels with GM posts, with most recent post timestamp
-        # Order by timestamp DESC so most recently active channels appear first
+        # Query ALL accessible channels with GM posts
+        # Order by last_gm_post_ts (denormalized column) for instant performance
         rows = db.execute(f"""
             SELECT
                 c.chan_id,
-                c.name,
-                MAX(p.created_ts) as last_post_ts
+                c.name
             FROM channels c
-            LEFT JOIN posts p ON c.chan_id = p.chan_id AND p.deleted = FALSE
             WHERE c.accessible = TRUE
               AND c.last_message_id IS NOT NULL
               AND c.has_gm_posts = TRUE
               {excluded_clause}
-            GROUP BY c.chan_id, c.name
-            ORDER BY last_post_ts DESC NULLS LAST
+            ORDER BY c.last_gm_post_ts DESC NULLS LAST
         """, excluded_params)
 
         # Separate into featured and non-featured

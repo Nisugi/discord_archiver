@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS channels(
     accessible      BOOLEAN,
     last_message_id TEXT,
     created_ts      BIGINT,
-    has_gm_posts    BOOLEAN DEFAULT FALSE
+    has_gm_posts    BOOLEAN DEFAULT FALSE,
+    last_gm_post_ts BIGINT
 );
 
 CREATE TABLE IF NOT EXISTS posts(
@@ -441,9 +442,12 @@ async def save_message(db, msg):
                 str(msg.author.id)
             )
             if is_gm_query:
+                # Update both has_gm_posts flag and last GM post timestamp
+                msg_ts = int(msg.created_at.timestamp())
                 await conn.execute(
-                    "UPDATE channels SET has_gm_posts = TRUE WHERE chan_id = $1 AND has_gm_posts = FALSE",
-                    str(msg.channel.id)
+                    "UPDATE channels SET has_gm_posts = TRUE, last_gm_post_ts = $2 WHERE chan_id = $1",
+                    str(msg.channel.id),
+                    msg_ts
                 )
 
 
