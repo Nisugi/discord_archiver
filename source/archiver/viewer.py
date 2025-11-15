@@ -337,11 +337,12 @@ def api_members():
 
 @app.route('/api/channels')
 def get_channels():
-    """Get channels with aggressive optimization - OPTIMIZED"""
+    """Get ALL channels (featured first) for local search - OPTIMIZED"""
     try:
-        from archiver.config import PRIVATE_CHANNELS
+        from archiver.config import PRIVATE_CHANNELS, INACCESSIBLE_CHANNELS
     except ImportError:
         PRIVATE_CHANNELS = set()
+        INACCESSIBLE_CHANNELS = set()
 
     try:
         # Check cache first
@@ -352,44 +353,62 @@ def get_channels():
         start_time = time.time()
         db = get_db()
 
-        # MUCH faster approach - use INNER JOIN instead of EXISTS
-        ignored_clause = ""
-        ignored_params = []
-        if PRIVATE_CHANNELS:
-            placeholders = ",".join("?" * len(PRIVATE_CHANNELS))
-            ignored_clause = f"AND c.chan_id NOT IN ({placeholders})"
-            ignored_params = [str(ch_id) for ch_id in PRIVATE_CHANNELS]
+        # Build exclusion list (private + inaccessible channels)
+        excluded_channels = PRIVATE_CHANNELS | INACCESSIBLE_CHANNELS
+        excluded_clause = ""
+        excluded_params = []
+        if excluded_channels:
+            placeholders = ",".join("?" * len(excluded_channels))
+            excluded_clause = f"AND c.chan_id NOT IN ({placeholders})"
+            excluded_params = [str(ch_id) for ch_id in excluded_channels]
 
-        # Return ONLY featured channels - clean and simple
-        # No other channels to avoid thread clutter
-        featured_ids = [str(cid) for cid in FEATURED_CHANNEL_IDS]
-        featured_placeholders = ",".join("?" * len(featured_ids))
-
+        # Query ALL accessible channels with GM posts, with most recent post timestamp
+        # Order by timestamp DESC so most recently active channels appear first
         rows = db.execute(f"""
             SELECT
                 c.chan_id,
-                c.name
+                c.name,
+                MAX(p.created_ts) as last_post_ts
             FROM channels c
-            WHERE c.chan_id IN ({featured_placeholders})
-            ORDER BY c.name
-        """, featured_ids)
+            LEFT JOIN posts p ON c.chan_id = p.chan_id AND p.deleted = 0
+            WHERE c.accessible = 1
+              AND c.last_message_id IS NOT NULL
+              AND c.has_gm_posts = 1
+              {excluded_clause}
+            GROUP BY c.chan_id, c.name
+            ORDER BY last_post_ts DESC NULLS LAST
+        """, excluded_params)
 
-        # Build featured channels list with name overrides
+        # Separate into featured and non-featured
         featured = []
+        others = []
+        featured_ids_set = FEATURED_CHANNEL_IDS
+
         for r in rows:
             chan_id_int = int(r['chan_id'])
             # Apply channel name override if one exists, otherwise use Discord name
             display_name = CHANNEL_NAME_OVERRIDES.get(chan_id_int, r['name'])
-            featured.append({'id': r['chan_id'], 'name': display_name})
+            channel_obj = {'id': r['chan_id'], 'name': display_name}
 
-        # Return only featured channels
-        grouped = {'Featured Channels': sorted(featured, key=lambda x: x['name'])}
+            if chan_id_int in featured_ids_set:
+                featured.append(channel_obj)
+            else:
+                others.append(channel_obj)
+
+        # Return with Featured first (sorted alphabetically), then all others (sorted by recency)
+        # Featured channels appear first so they're in the initial render limit
+        # Others maintain DB order (most recent first) - so spillover shows active channels
+        grouped = {
+            'Featured Channels': sorted(featured, key=lambda x: x['name']),
+            'All Other Channels': others  # Keep DB order (timestamp DESC)
+        }
 
         # Cache the result
         set_cached_data('channels', grouped)
-        
+
+        total_channels = len(featured) + len(others)
         elapsed = time.time() - start_time
-        print(f"[Viewer] Loaded {len(grouped)} channel groups in {elapsed:.2f}s")
+        print(f"[Viewer] Loaded {total_channels} channels ({len(featured)} featured, {len(others)} other) in {elapsed:.2f}s")
 
         return jsonify(grouped)
     except Exception as e:
@@ -2148,8 +2167,14 @@ search_template = '''
                 channelChoices = new Choices(select, {
                     removeItemButton: true,
                     placeholderValue: 'Select channels…',
-                    searchPlaceholderValue: 'Type to search',
-                    shouldSort: false
+                    searchPlaceholderValue: 'Type to search all channels',
+                    shouldSort: false,
+                    renderChoiceLimit: 100,     // Only render first ~100 items initially
+                    searchResultLimit: 100,      // Show up to 100 search results
+                    fuseOptions: {               // Better fuzzy search
+                        threshold: 0.3,
+                        distance: 1000
+                    }
                 });
 
                 showReadyStatus('channelStatus', `${totalChannels} channels loaded`);
