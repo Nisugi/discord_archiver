@@ -8,7 +8,9 @@ This migration:
 3. Backfills data with the most recent GM post timestamp per channel
 4. Reports statistics
 
-Run this once after deploying the updated code.
+Run this from source/ directory with venv activated:
+  cd source && source .venv/bin/activate
+  python ../scripts/add_last_gm_post_ts_column.py
 """
 import os
 import sys
@@ -17,10 +19,18 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     print("ERROR: DATABASE_URL environment variable not set")
     print("Set it with: export DATABASE_URL='postgresql://...'")
+    print("Or run from source/ with: source .venv/bin/activate && export $(grep DATABASE_URL ../.env | xargs)")
     sys.exit(1)
 
 if DATABASE_URL.startswith("postgresql"):
-    import psycopg
+    try:
+        import psycopg
+    except ImportError:
+        print("ERROR: psycopg module not found")
+        print("Run this script from the source/ directory with the virtual environment activated:")
+        print("  cd source && source .venv/bin/activate")
+        print("  python ../scripts/add_last_gm_post_ts_column.py")
+        sys.exit(1)
 
     def migrate():
         with psycopg.connect(DATABASE_URL) as conn:
