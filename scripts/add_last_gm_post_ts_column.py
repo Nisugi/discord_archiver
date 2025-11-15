@@ -12,11 +12,15 @@ Run this once after deploying the updated code.
 """
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load .env file (same as bot/viewer)
+load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     print("ERROR: DATABASE_URL environment variable not set")
-    print("Set it with: export DATABASE_URL='postgresql://...'")
+    print("Make sure .env file exists with DATABASE_URL='postgresql://...'")
     sys.exit(1)
 
 if DATABASE_URL.startswith("postgresql"):
